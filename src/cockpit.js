@@ -10,7 +10,7 @@ function instrument(steering) {
   const up = new T.Vector3(0, .6, .8);
   const orientation = new T.Matrix4().makeBasis(new T.Vector3(-1, 0, 0), up, normal);
   mount.quaternion.setFromRotationMatrix(orientation).premultiply(neutral);
-  mount.position.copy(up).multiplyScalar(.057).addScaledVector(normal, .031).applyQuaternion(neutral);
+  mount.position.copy(up).multiplyScalar(.029).addScaledVector(normal, .031).applyQuaternion(neutral);
   steering.add(mount);
 
   const molded = new T.MeshStandardMaterial({color:0x24272a, roughness:.58});

@@ -6,18 +6,101 @@ import { makeSound } from './sound.js';
 import { times } from './conditions.js';
 
 const get = id => document.getElementById(id);
-const trackId = new URLSearchParams(location.search).get('pista');
+const query = new URLSearchParams(location.search);
+const trackId = query.get('pista');
 const definition = tracks.find(track => track.id === trackId) ?? tracks[0];
 const track = makeTrack(definition);
 let storage;
 try { storage = window.localStorage; } catch { storage = null; }
+const readChoice = key => { try { return storage?.getItem('mlr.' + key); } catch { return null; } };
+const saveChoice = (key, value) => { try { storage?.setItem('mlr.' + key, value); } catch { /* Storage is optional. */ } };
 const weatherControl = get('weather'), hourControl = get('hour');
-let wet = new URLSearchParams(location.search).get('clima') === 'chuva';
-const requestedTime = new URLSearchParams(location.search).get('hora');
-let hour = Object.hasOwn(times, requestedTime) ? requestedTime : 'day';
+const weatherValues = {chuva:true, rain:true, aberto:false, clear:false};
+const requestedWeather = query.get('clima');
+const weatherFromUrl = Object.hasOwn(weatherValues, requestedWeather)
+  ? weatherValues[requestedWeather] : undefined;
+let wet = weatherFromUrl ?? readChoice('weather') === 'rain';
+const requestedPeriod = query.get('periodo');
+const requestedTime = Object.hasOwn(times, requestedPeriod) ? requestedPeriod : query.get('hora');
+const savedTime = readChoice('period');
+let hour = Object.hasOwn(times, requestedTime) ? requestedTime
+  : Object.hasOwn(times, savedTime) ? savedTime : 'day';
 let timer = makeTimer(track, storage, wet);
-weatherControl.value = wet ? 'rain' : 'clear';
-hourControl.value = hour;
+const periodNames = {day:'Dia', dusk:'Final da tarde', night:'Noite'};
+let openPicker = null;
+let conditionsBusy = true;
+function makePicker(trigger) {
+  const box = trigger.closest('.picker');
+  const list = get(trigger.getAttribute('aria-controls'));
+  const options = [...list.querySelectorAll('[role="option"]')];
+  const close = restoreFocus => {
+    if (list.hidden) return;
+    list.hidden = true;
+    box.classList.remove('is-open');
+    trigger.setAttribute('aria-expanded', 'false');
+    if (openPicker?.trigger === trigger) openPicker = null;
+    if (restoreFocus) trigger.focus();
+  };
+  const open = () => {
+    if (trigger.disabled) return;
+    openPicker?.close(false);
+    list.hidden = false;
+    box.classList.add('is-open');
+    trigger.setAttribute('aria-expanded', 'true');
+    openPicker = {trigger, close};
+    options.find(option => option.dataset.value === trigger.value)?.focus();
+  };
+  const set = (value, notify = false) => {
+    const selected = options.find(option => option.dataset.value === value);
+    if (!selected) return;
+    trigger.value = value;
+    trigger.querySelector('.picker-value').textContent = selected.dataset.label;
+    for (const option of options) {
+      option.setAttribute('aria-selected', String(option === selected));
+    }
+    if (notify) trigger.dispatchEvent(new Event('change', {bubbles:true}));
+  };
+  trigger.addEventListener('click', () => list.hidden ? open() : close(true));
+  trigger.addEventListener('keydown', event => {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      open();
+    } else if (event.key === 'Escape' && !list.hidden) {
+      event.preventDefault();
+      event.stopPropagation();
+      close(true);
+    }
+  });
+  list.addEventListener('keydown', event => {
+    const index = options.indexOf(document.activeElement);
+    const next = {ArrowDown:(index + 1) % options.length,
+      ArrowUp:(index - 1 + options.length) % options.length,
+      Home:0, End:options.length - 1}[event.key];
+    if (next !== undefined) {
+      event.preventDefault();
+      options[next].focus();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      close(true);
+    } else if (event.key === 'Tab') close(false);
+  });
+  for (const option of options) option.addEventListener('click', () => {
+    if (trigger.disabled) return;
+    close(true);
+    set(option.dataset.value, true);
+  });
+  document.addEventListener('pointerdown', event => {
+    if (!box.contains(event.target)) close(false);
+  });
+  return {set};
+}
+const weatherPicker = makePicker(weatherControl), hourPicker = makePicker(hourControl);
+function syncPickers() {
+  weatherPicker.set(wet ? 'rain' : 'clear');
+  hourPicker.set(hour);
+}
+syncPickers();
 const sound = makeSound();
 let kart = spawn(track), camera = 0, time = 0, accumulator = 0;
 let state = 'menu', previous = 0, snap = true;
@@ -38,8 +121,8 @@ function setText(id, value) {
   const element = get(id);
   if (element.textContent !== value) element.textContent = value;
 }
-function reset() {
-  kart = spawn(track);
+function reset(nextKart = spawn(track)) {
+  kart = nextKart;
   timer.reset();
   world?.clearTireTrail();
   snap = true;
@@ -47,23 +130,95 @@ function reset() {
 }
 function applyConditions() {
   world?.setConditions(hour, wet);
-  setText('conditions-hud', times[hour].hour + ' · ' + (wet ? 'Chuva' : 'Céu aberto'));
+  setText('conditions-hud', periodNames[hour] + ' · ' + (wet ? 'Chuva' : 'Céu aberto'));
   setText('menu-best', timer.best ? format(timer.best) : 'Sem volta registrada');
   snap = true;
 }
+function rememberConditions() {
+  saveChoice('weather', wet ? 'rain' : 'clear');
+  saveChoice('period', hour);
+  const url = new URL(location.href);
+  url.searchParams.set('clima', wet ? 'chuva' : 'aberto');
+  url.searchParams.delete('periodo');
+  url.searchParams.set('hora', hour);
+  history.replaceState(history.state, '', url);
+}
+const afterPaint = () => new Promise(resolve =>
+  requestAnimationFrame(() => requestAnimationFrame(resolve)));
+function showLoading(message, error = false) {
+  const status = get('loading-status');
+  status.hidden = false;
+  status.dataset.error = String(error);
+  setText('loading-status', message);
+}
+function loadingProgress({stage, loaded, total, progress}, preparing = 'Preparando cena') {
+  if (stage === 'assets') showLoading(`Carregando arquivos: ${loaded} de ${total}`);
+  else if (stage === 'renderer') showLoading('Inicializando WebGPU…');
+  else if (stage === 'scene') showLoading('Montando circuito…');
+  else if (stage === 'pipelines') showLoading(Number.isFinite(progress) && Number.isFinite(total)
+    ? `${preparing} · ${progress} de ${total} pipelines` : preparing + '…');
+}
+function setConditionsBusy(busy) {
+  conditionsBusy = busy;
+  if (busy) openPicker?.close(false);
+  get('conditions').setAttribute('aria-busy', String(busy));
+  weatherControl.disabled = hourControl.disabled = busy;
+  get('start').disabled = get('restart').disabled = busy;
+}
+async function changeConditions(nextHour, nextWet, preparing) {
+  syncPickers();
+  if (!world || conditionsBusy || (nextHour === hour && nextWet === wet)) return;
+  const previous = {hour, wet, kart, timer};
+  const weatherChanged = nextWet !== wet;
+  const candidateKart = weatherChanged ? spawn(track) : kart;
+  const focusedControl = document.activeElement;
+  setConditionsBusy(true);
+  showLoading(preparing + '…');
+  try {
+    await afterPaint();
+    await world.prepareConditions(nextHour, nextWet, progress => loadingProgress(progress, preparing), {
+      kart:candidateKart, mode:camera, lapTime:weatherChanged ? '—' : format(timer.elapsed(time)),
+    });
+    hour = nextHour;
+    wet = nextWet;
+    if (weatherChanged) {
+      timer = makeTimer(track, storage, wet);
+      reset(candidateKart);
+    }
+    applyConditions();
+    world.render(kart, 0, camera, true, format(timer.elapsed(time)));
+    snap = false;
+    syncPickers();
+    rememberConditions();
+    await afterPaint();
+    get('loading-status').hidden = true;
+  } catch (error) {
+    ({hour, wet, kart, timer} = previous);
+    applyConditions();
+    syncPickers();
+    try {
+      world.render(kart, 0, camera, true, format(timer.elapsed(time)));
+      snap = false;
+    } catch (restoreError) {
+      console.error('Não foi possível redesenhar a condição anterior', restoreError);
+    }
+    showLoading('Não foi possível preparar a condição. A seleção anterior foi mantida. Tente novamente.', true);
+    console.error(error);
+  } finally {
+    setConditionsBusy(false);
+    if ((focusedControl === weatherControl || focusedControl === hourControl) &&
+        document.activeElement === document.body) focusedControl.focus({preventScroll:true});
+  }
+}
 weatherControl.addEventListener('change', () => {
   const rain = weatherControl.value === 'rain';
-  if (rain === wet) return;
-  wet = rain;
-  timer = makeTimer(track, storage, wet);
-  reset();
-  applyConditions();
+  void changeConditions(hour, rain, rain ? 'Preparando chuva' : 'Preparando pista seca');
 });
 hourControl.addEventListener('change', () => {
-  hour = hourControl.value;
-  applyConditions();
+  void changeConditions(hourControl.value, wet, 'Preparando iluminação');
 });
 function mode(next) {
+  if (next === 'drive' && conditionsBusy) return;
   state = next;
   const playing = next === 'drive';
   down.clear();
@@ -96,6 +251,7 @@ get('sound').addEventListener('click', () => {
 });
 get('scene').tabIndex = -1;
 get('start').addEventListener('click', () => {
+  if (conditionsBusy) return;
   if (state === 'menu') reset();
   void sound.activate();
   mode('drive');
@@ -112,6 +268,7 @@ get('camera').addEventListener('click', () => {
   get('scene').focus({preventScroll:true});
 });
 get('restart').addEventListener('click', () => {
+  if (conditionsBusy) return;
   reset();
   mode('drive');
 });
@@ -214,7 +371,7 @@ function frame(now) {
     snap = false;
   } else {
     sound.update(false, 0, 0);
-    if (snap) {
+    if (snap && !conditionsBusy) {
       world.render(kart, 0, camera, true, format(timer.elapsed(time)));
       snap = false;
     }
@@ -224,22 +381,28 @@ function frame(now) {
 
 async function startGame() {
   try {
-    world = await createWorld(get('scene'), track);
+    setConditionsBusy(true);
+    world = await createWorld(get('scene'), track, {onProgress:loadingProgress});
     get('renderer-status').hidden = false;
+    showLoading('Preparando cena…');
+    await afterPaint();
+    await world.prepareConditions(hour, wet, loadingProgress);
     applyConditions();
     world.render(kart, 0, camera, true);
     snap = false;
-    setText('title', track.name);
+    setText('circuit-name', track.name);
     setText('summary', Math.round(track.length) + ' m de circuito · sessão solo');
     setText('menu-best', timer.best ? format(timer.best) : 'Sem volta registrada');
-    get('start').disabled = false;
-    weatherControl.disabled = hourControl.disabled = false;
+    await afterPaint();
+    get('loading-status').hidden = true;
+    setConditionsBusy(false);
     window.addEventListener('resize', () => { snap = true; });
     requestAnimationFrame(frame);
   } catch (error) {
-    setText('summary', error instanceof WebGPUUnavailableError
+    setText('summary', 'Inicialização interrompida');
+    showLoading(error instanceof WebGPUUnavailableError
       ? error.message
-      : 'Não foi possível iniciar a cena 3D. Verifique se o navegador pode usar WebGPU.');
+      : 'Não foi possível iniciar a cena 3D. Verifique se o navegador pode usar WebGPU e recarregue o jogo.', true);
     console.error(error);
   }
 }

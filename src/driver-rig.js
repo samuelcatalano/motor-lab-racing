@@ -64,6 +64,7 @@ export function mountDriverRig(body, root, wheel) {
   const spine = body?.getObjectByName('RigSpine');
   const head = body?.getObjectByName('RigHead');
   if (!spine || !head) return null;
+  const detailedRacer = Boolean(body.getObjectByName('Racer_|_glove_cuff_L'));
 
   root.updateWorldMatrix(true, true);
   const spineRest = spine.quaternion.clone();
@@ -77,10 +78,26 @@ export function mountDriverRig(body, root, wheel) {
     const lower = body.getObjectByName('RigForearm' + side);
     const hand = body.getObjectByName('RigHand' + side);
     const pose = limb(upper, lower, hand);
+    const grip = wheel.worldToLocal(pose.tip);
+    const gripOrientation = relativeQuaternion(hand, wheel);
+    if (detailedRacer) {
+      // Move the detailed Racer's closed grip from the sides to ten and two.
+      const axis = new Vector3().fromArray(wheel.userData.steeringAxis).normalize();
+      const turn = new Quaternion().setFromAxisAngle(axis, side === 'L' ? .326 : -.326);
+      grip.applyQuaternion(turn);
+      gripOrientation.premultiply(turn);
+      // Protract the shoulders so the outside arm can reach the raised grip at full lock.
+      const collar = upper.parent;
+      const shoulderAxis = localAxis.clone().applyQuaternion(relativeQuaternion(collar.parent, root).invert());
+      collar.quaternion.premultiply(new Quaternion().setFromAxisAngle(shoulderAxis, side === 'L' ? -.4 : .4));
+      hand.traverse(joint => {
+        const finger = joint.name.match(/Hand(Ring|Pinky)[23]$/);
+        if (finger) joint.rotateX(finger[1] === 'Pinky' ? .28 : .14);
+      });
+    }
     return {
       ...pose,
-      pole:spine.worldToLocal(pose.joint), grip:wheel.worldToLocal(pose.tip),
-      gripOrientation: relativeQuaternion(hand, wheel),
+      pole:spine.worldToLocal(pose.joint), grip, gripOrientation,
     };
   });
   const legs = ['L', 'R'].map(side => mountLeg(body, root, side)).filter(Boolean);

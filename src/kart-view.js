@@ -154,24 +154,35 @@ async function loadLocalKart(loader) {
   if (!localHosts.has(window.location.hostname)) return null;
   const query = new URLSearchParams(window.location.search);
   const mixamo = query.get('piloto') === 'mixamo' || query.get('kart') !== 'importado';
-  const asset = mixamo ? '__mixamo-kart.glb' : '__local-kart.glb';
-  const response = await fetch(import.meta.env.BASE_URL + asset);
-  if (!response.ok || response.headers.get('content-type') !== 'model/gltf-binary') return null;
-  const { scene } = await loader.parseAsync(await response.arrayBuffer(), '');
-  const steering = scene.getObjectByName('ImportedSteering');
-  if (mixamo && scene.getObjectByName('LippiRig')?.userData.assetSource !== 'Adobe Mixamo Racer') {
-    throw new Error('O kart local não contém o piloto Racer');
+  const previousGrip = mixamo && query.get('pegada') === 'anterior';
+  const asset = previousGrip ? '__mixamo-kart-before-restoration.glb'
+    : mixamo ? '__mixamo-kart.glb' : '__local-kart.glb';
+  const url = import.meta.env.BASE_URL + asset;
+  loader.manager.itemStart(url);
+  try {
+    const response = await fetch(url);
+    if (!response.ok || response.headers.get('content-type') !== 'model/gltf-binary') return null;
+    const { scene } = await loader.parseAsync(await response.arrayBuffer(), '');
+    const steering = scene.getObjectByName('ImportedSteering');
+    if (mixamo && scene.getObjectByName('LippiRig')?.userData.assetSource !== 'Adobe Mixamo Racer') {
+      throw new Error('O kart local não contém o piloto Racer');
+    }
+    if (!steering?.userData.steeringAxis ||
+        !(scene.getObjectByName('DriverArms') || scene.getObjectByName('RigSpine')) ||
+        importedWheelNames.some(name => !scene.getObjectByName(name))) {
+      throw new Error('O kart local não contém as articulações esperadas');
+    }
+    return scene;
+  } catch (error) {
+    loader.manager.itemError(url);
+    throw error;
+  } finally {
+    loader.manager.itemEnd(url);
   }
-  if (!steering?.userData.steeringAxis ||
-      !(scene.getObjectByName('DriverArms') || scene.getObjectByName('RigSpine')) ||
-      importedWheelNames.some(name => !scene.getObjectByName(name))) {
-    throw new Error('O kart local não contém as articulações esperadas');
-  }
-  return scene;
 }
 
-export async function loadKartBody() {
-  const loader = new GLTFLoader();
+export async function loadKartBody(manager) {
+  const loader = new GLTFLoader(manager);
   let scene;
   try {
     scene = await loadLocalKart(loader);

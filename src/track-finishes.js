@@ -1,9 +1,9 @@
 import * as T from 'three/webgpu';
 import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 
-export async function loadTrackFinishes() {
+export async function loadTrackFinishes(manager) {
   const directory = import.meta.env.BASE_URL + 'assets/vale-do-cedro/';
-  const loader = new T.TextureLoader();
+  const loader = new T.TextureLoader(manager);
   const asphalt = Promise.all(['color', 'normal', 'rough'].map(channel =>
     loader.loadAsync(directory + 'asphalt-' + channel + '.webp')
   )).then(([map, normalMap, roughnessMap]) => {
@@ -13,7 +13,7 @@ export async function loadTrackFinishes() {
     console.warn('Texturas do asfalto indisponíveis', error);
     return null;
   });
-  const hdrLoader = new HDRLoader();
+  const hdrLoader = new HDRLoader(manager);
   const environment = name => hdrLoader.loadAsync(directory + name).then(texture => {
     texture.mapping = T.EquirectangularReflectionMapping;
     return texture;

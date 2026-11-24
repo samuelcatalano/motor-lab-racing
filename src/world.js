@@ -1,6 +1,7 @@
 import * as T from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { buildKart, loadKartBody } from './kart-view.js';
+import { spawn } from './drive.js';
 import { helmetLayer, makeCockpit } from './cockpit.js';
 import { random, surfaceMaps } from './surfaces.js';
 import { loadTrackFinishes, gridMarkings } from './track-finishes.js';
@@ -561,12 +562,27 @@ function makeContactShadow() {
   return mesh;
 }
 
-export async function createWorld(canvas, track) {
-  const [{road, sky: panorama, forest, grass, roadDetail}, kartBody] = await Promise.all([
-    loadTrackFinishes(),
-    loadKartBody(),
-  ]);
-  const renderer = await createWebGpuRenderer(canvas);
+export async function createWorld(canvas, track, {onProgress = () => {}} = {}) {
+  const manager = new T.LoadingManager();
+  let loadingAssets = true;
+  const assetProgress = (_url, loaded, total) => {
+    if (loadingAssets) onProgress({stage:'assets', loaded, total});
+  };
+  manager.onStart = manager.onProgress = assetProgress;
+  onProgress({stage:'renderer'});
+  const rendererPromise = createWebGpuRenderer(canvas);
+  const assetsPromise = Promise.all([
+    loadTrackFinishes(manager),
+    loadKartBody(manager),
+  ]).then(assets => {
+    if (loadingAssets) onProgress({stage:'renderer'});
+    return assets;
+  });
+  const [[{road, sky: panorama, forest, grass, roadDetail}, kartBody], renderer] =
+    await Promise.all([assetsPromise, rendererPromise]).finally(() => { loadingAssets = false; });
+  onProgress({stage:'scene'});
+  // Give the scene stage a paint before synchronous geometry construction.
+  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = T.PCFShadowMap;
@@ -597,6 +613,56 @@ export async function createWorld(canvas, track) {
   }
   window.addEventListener('resize', resize);
   resize();
+  const view = {kart:spawn(track), mode:0, lapTime:'—'};
+  function updateView(kart, dt, mode, snap, lapTime) {
+    view.kart = kart;
+    view.mode = mode;
+    view.lapTime = lapTime;
+    kartView.update(kart, dt);
+    tireTrail.update(kart, dt, camera);
+    contact.position.set(kart.x, .034, kart.z);
+    contact.rotation.y = Math.PI / 2 - kart.angle;
+    // Pull back as the viewport narrows so the rear wheels stay in frame.
+    const narrow = 1 - T.MathUtils.smoothstep(camera.aspect, .58, 1.28);
+    const firstPerson = mode === 2;
+    const fov = firstPerson ? 67 + narrow * 9 : 56;
+    if (camera.fov !== fov) {
+      camera.fov = fov;
+      camera.near = firstPerson ? .028 : .07;
+      camera.updateProjectionMatrix();
+    }
+    cockpit.show(firstPerson, kart.speed, lapTime);
+    if (firstPerson) {
+      camera.layers.disable(helmetLayer);
+      cockpit.frame(eye, target, narrow);
+      camera.position.copy(eye);
+      look.copy(target);
+    } else {
+      camera.layers.enable(helmetLayer);
+      const x = Math.cos(kart.angle), z = Math.sin(kart.angle);
+      const distance = mode === 1 ? 5.05 : 2.67 + narrow * 1.43 + Math.min(kart.speed * .009, .23);
+      const height = mode === 1 ? 2.53 : 1.12 + narrow * .25;
+      const lookAhead = mode === 1 ? 5.4 : 4.8;
+      const lookHeight = mode === 1 ? .73 : .56;
+      eye.set(kart.x - x * distance, height, kart.z - z * distance);
+      target.set(kart.x + x * lookAhead, lookHeight, kart.z + z * lookAhead);
+      // Follow translation immediately and smooth only changes in heading/framing.
+      if (!snap) {
+        kartMovement.set(kart.x - lastKartPosition.x, 0, kart.z - lastKartPosition.z);
+        camera.position.add(kartMovement);
+        look.add(kartMovement);
+      }
+      const blend = snap ? 1 : 1 - Math.exp(-10 * dt);
+      camera.position.lerp(eye, blend);
+      look.lerp(target, blend);
+    }
+    lastKartPosition.set(kart.x, 0, kart.z);
+    camera.lookAt(look);
+    rainClock.value+=dt;
+    rainClockNode.value=rainClock.value;
+    lighting.update(kart,camera,dt);
+    rain.update(kart,dt);
+  }
   return {
     setConditions(hour,wet){
       wetness.value=Number(wet);
@@ -607,51 +673,21 @@ export async function createWorld(canvas, track) {
       rain.set(hour,wet);
     },
     clearTireTrail() { tireTrail.reset(); },
+    async prepareConditions(hour, wet, onProgress = () => {}, nextView = view) {
+      this.setConditions(hour, wet);
+      updateView(nextView.kart, 0, nextView.mode, true, nextView.lapTime);
+      onProgress({stage:'pipelines'});
+      let active = true;
+      try {
+        await renderer.compileAsync(scene, camera, null, ({loaded, total}) => {
+          if (active) onProgress({stage:'pipelines', progress:loaded, total});
+        });
+      } finally {
+        active = false;
+      }
+    },
     render(kart, dt, mode, snap = false, lapTime = '—') {
-      kartView.update(kart, dt);
-      tireTrail.update(kart, dt, camera);
-      contact.position.set(kart.x, .034, kart.z);
-      contact.rotation.y = Math.PI / 2 - kart.angle;
-      // Pull back as the viewport narrows so the rear wheels stay in frame.
-      const narrow = 1 - T.MathUtils.smoothstep(camera.aspect, .58, 1.28);
-      const firstPerson = mode === 2;
-      const fov = firstPerson ? 67 + narrow * 9 : 56;
-      if (camera.fov !== fov) {
-        camera.fov = fov;
-        camera.near = firstPerson ? .028 : .07;
-        camera.updateProjectionMatrix();
-      }
-      cockpit.show(firstPerson, kart.speed, lapTime);
-      if (firstPerson) {
-        camera.layers.disable(helmetLayer);
-        cockpit.frame(eye, target, narrow);
-        camera.position.copy(eye);
-        look.copy(target);
-      } else {
-        camera.layers.enable(helmetLayer);
-        const x = Math.cos(kart.angle), z = Math.sin(kart.angle);
-        const distance = mode === 1 ? 5.05 : 2.67 + narrow * 1.43 + Math.min(kart.speed * .009, .23);
-        const height = mode === 1 ? 2.53 : 1.12 + narrow * .25;
-        const lookAhead = mode === 1 ? 5.4 : 4.8;
-        const lookHeight = mode === 1 ? .73 : .56;
-        eye.set(kart.x - x * distance, height, kart.z - z * distance);
-        target.set(kart.x + x * lookAhead, lookHeight, kart.z + z * lookAhead);
-        // Follow translation immediately and smooth only changes in heading/framing.
-        if (!snap) {
-          kartMovement.set(kart.x - lastKartPosition.x, 0, kart.z - lastKartPosition.z);
-          camera.position.add(kartMovement);
-          look.add(kartMovement);
-        }
-        const blend = snap ? 1 : 1 - Math.exp(-10 * dt);
-        camera.position.lerp(eye, blend);
-        look.lerp(target, blend);
-      }
-      lastKartPosition.set(kart.x, 0, kart.z);
-      camera.lookAt(look);
-      rainClock.value+=dt;
-      rainClockNode.value=rainClock.value;
-      lighting.update(kart,camera,dt);
-      rain.update(kart,dt);
+      updateView(kart, dt, mode, snap, lapTime);
       renderer.render(scene, camera);
     },
   };

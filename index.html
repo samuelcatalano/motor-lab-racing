@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#111a19">
+  <meta name="theme-color" content="#0b1412">
   <link rel="icon" href="data:,">
   <script>
     if (location.protocol === 'file:') {
@@ -44,23 +44,37 @@
 
     <section id="menu" class="overlay" aria-labelledby="title">
       <div class="panel">
-        <p class="label eyebrow" id="mode">Contra o relógio</p>
-        <h1 id="title">Vale do Cedro</h1>
-        <p id="summary">Carregando circuito…</p>
-        <div class="conditions">
-          <label for="weather"><span class="label">Clima</span>
-            <select id="weather" disabled>
-              <option value="clear">Céu aberto</option>
-              <option value="rain">Chuva</option>
-            </select>
-          </label>
-          <label for="hour"><span class="label">Horário</span>
-            <select id="hour" disabled>
-              <option value="day">13:00 · Dia</option>
-              <option value="dusk">17:30 · Fim de tarde</option>
-              <option value="night">21:30 · Noite</option>
-            </select>
-          </label>
+        <p class="eyebrow" id="mode"><span class="race-number" aria-hidden="true">01</span> Contra o relógio</p>
+        <h1 id="title" aria-label="Motor Lab Racing" translate="no"><span>MOTOR LAB</span><em>RACING</em></h1>
+        <p class="hero-copy">Seu kart. Seu traçado. Cada décimo conta.</p>
+        <div class="circuit-card">
+          <span class="label">Circuito selecionado</span>
+          <strong id="circuit-name">Vale do Cedro</strong>
+          <span id="summary">Carregando circuito…</span>
+        </div>
+        <p id="loading-status" class="loading-status" role="status" aria-live="polite" aria-atomic="true">Inicializando WebGPU…</p>
+        <div class="conditions" id="conditions" aria-busy="true">
+          <div class="picker" data-picker="weather">
+            <span class="label" id="weather-label">Clima</span>
+            <button id="weather" class="picker-trigger" type="button" value="clear" aria-labelledby="weather-label weather-value" aria-haspopup="listbox" aria-expanded="false" aria-controls="weather-options" disabled>
+              <span class="picker-value" id="weather-value">Céu aberto</span><span class="picker-arrow" aria-hidden="true"></span>
+            </button>
+            <div class="picker-options" id="weather-options" role="listbox" aria-labelledby="weather-label" hidden>
+              <button type="button" role="option" data-value="clear" data-label="Céu aberto" aria-selected="true" tabindex="-1"><span>Céu aberto</span><small>Pista seca</small></button>
+              <button type="button" role="option" data-value="rain" data-label="Chuva" aria-selected="false" tabindex="-1"><span>Chuva</span><small>Aderência reduzida</small></button>
+            </div>
+          </div>
+          <div class="picker" data-picker="hour">
+            <span class="label" id="hour-label">Período</span>
+            <button id="hour" class="picker-trigger" type="button" value="day" aria-labelledby="hour-label hour-value" aria-haspopup="listbox" aria-expanded="false" aria-controls="hour-options" disabled>
+              <span class="picker-value" id="hour-value">Dia</span><span class="picker-arrow" aria-hidden="true"></span>
+            </button>
+            <div class="picker-options" id="hour-options" role="listbox" aria-labelledby="hour-label" hidden>
+              <button type="button" role="option" data-value="day" data-label="Dia" aria-selected="true" tabindex="-1"><span>Dia</span><small>Luz clara</small></button>
+              <button type="button" role="option" data-value="dusk" data-label="Final da tarde" aria-selected="false" tabindex="-1"><span>Final da tarde</span><small>Sol baixo</small></button>
+              <button type="button" role="option" data-value="night" data-label="Noite" aria-selected="false" tabindex="-1"><span>Noite</span><small>Refletores acesos</small></button>
+            </div>
+          </div>
         </div>
         <div class="record"><span class="label">Recorde pessoal</span><strong id="menu-best">Sem volta registrada</strong></div>
         <div class="menu-actions">
@@ -68,13 +82,16 @@
           <button id="restart" type="button" hidden>Nova sessão</button>
           <button id="reload" type="button" hidden>Recarregar jogo</button>
         </div>
-        <dl class="keys">
-          <div><dt><kbd>W</kbd> <kbd>S</kbd></dt><dd>Acelerar / frear</dd></div>
-          <div><dt><kbd>A</kbd> <kbd>D</kbd></dt><dd>Dirigir</dd></div>
-          <div><dt><kbd>C</kbd></dt><dd>Câmera</dd></div>
-          <div><dt><kbd>R</kbd></dt><dd>Reposicionar</dd></div>
-          <div><dt><kbd>Esc</kbd></dt><dd>Pausar</dd></div>
-        </dl>
+        <details class="controls-help">
+          <summary>Controles <span aria-hidden="true">↗</span></summary>
+          <dl class="keys">
+            <div><dt><kbd>W</kbd> <kbd>S</kbd></dt><dd>Acelerar / frear</dd></div>
+            <div><dt><kbd>A</kbd> <kbd>D</kbd></dt><dd>Dirigir</dd></div>
+            <div><dt><kbd>C</kbd></dt><dd>Câmera</dd></div>
+            <div><dt><kbd>R</kbd></dt><dd>Reposicionar</dd></div>
+            <div><dt><kbd>Esc</kbd></dt><dd>Pausar</dd></div>
+          </dl>
+        </details>
       </div>
     </section>
 
