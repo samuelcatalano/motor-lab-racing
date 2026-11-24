@@ -30,7 +30,7 @@ export function addTireTrail(scene, track, rearWheels) {
   const positions=new T.Float32BufferAttribute(new Float32Array(capacity*4*3),3).setUsage(T.DynamicDrawUsage);
   const uvValues=new Float32Array(capacity*4*2);
   const densityAttribute=new T.Float32BufferAttribute(new Float32Array(capacity*4),1).setUsage(T.DynamicDrawUsage);
-  const kind=new T.Float32BufferAttribute(new Float32Array(capacity*4),1);
+  const kindAttribute=new T.Float32BufferAttribute(new Float32Array(capacity*4),1);
   const indices=new Uint16Array(capacity*6);
   for(let i=0;i<capacity;i++) {
     const v=i*4, u=i*8;
@@ -40,7 +40,7 @@ export function addTireTrail(scene, track, rearWheels) {
   geometry.setAttribute('position',positions);
   geometry.setAttribute('uv',new T.BufferAttribute(uvValues,2));
   geometry.setAttribute('density',densityAttribute);
-  geometry.setAttribute('kind',kind);
+  geometry.setAttribute('kind',kindAttribute);
   geometry.setIndex(new T.BufferAttribute(indices,1));
   geometry.setDrawRange(0,0);
   const wisp=wispMap();
@@ -117,13 +117,13 @@ export function addTireTrail(scene, track, rearWheels) {
         for(let corner=0;corner<4;corner++) {
           positions.setXYZ(count*4+corner,corners[corner].x,corners[corner].y,corners[corner].z);
           densityAttribute.setX(count*4+corner,alpha);
-          kind.setX(count*4+corner,particle.kind);
+          kindAttribute.setX(count*4+corner,particle.kind);
         }
         count++;
       }
       geometry.setDrawRange(0, count*6);
       cloud.visible=count>0;
-      if (count) positions.needsUpdate = densityAttribute.needsUpdate = kind.needsUpdate = true;
+      if (count) positions.needsUpdate = densityAttribute.needsUpdate = kindAttribute.needsUpdate = true;
     },
   };
 }
