@@ -1,4 +1,5 @@
 import * as T from 'three/webgpu';
+import {abs, attribute, float, smoothstep} from 'three/tsl';
 
 const capacity = 1024;
 const halfWidth = .078;
@@ -23,28 +24,15 @@ export function addSkidMarks(scene, track, wheelCount) {
   geometry.setIndex(new T.BufferAttribute(indices, 1));
   geometry.setDrawRange(0, 0);
 
-  const material = new T.ShaderMaterial({
-    vertexShader:`
-      attribute float strength;
-      attribute float edge;
-      varying vec2 brush;
-      void main() {
-        brush = vec2(edge, strength);
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }`,
-    fragmentShader:`
-      varying vec2 brush;
-      void main() {
-        float coverage = 1.0 - smoothstep(.40, 1.0, abs(brush.x));
-        gl_FragColor = vec4(.028, .024, .020, brush.y * coverage);
-        #include <tonemapping_fragment>
-        #include <colorspace_fragment>
-      }`,
-    transparent:true,
-    depthWrite:false,
-  });
+  const material = new T.MeshBasicNodeMaterial({color:0x070605,transparent:true,depthWrite:false});
+  const strength=attribute('strength');
+  const edgeNode=attribute('edge');
+  material.opacityNode=strength.mul(
+    float(1).sub(smoothstep(.40,1,abs(edgeNode))),
+  );
   const marks = new T.Mesh(geometry, material);
   marks.frustumCulled = false;
+  marks.visible = false;
   scene.add(marks);
 
   const previous = Array.from({length:wheelCount}, () => ({x:0, z:0, strength:0}));
@@ -52,6 +40,7 @@ export function addSkidMarks(scene, track, wheelCount) {
   return {
     reset() {
       geometry.setDrawRange(0, 0);
+      marks.visible = false;
       next = count = 0;
       for (const wheel of previous) wheel.strength = 0;
     },
@@ -89,6 +78,7 @@ export function addSkidMarks(scene, track, wheelCount) {
       if (next === initial) return;
       positions.needsUpdate = intensity.needsUpdate = true;
       geometry.setDrawRange(0, count * 6);
+      marks.visible = count > 0;
     },
   };
 }

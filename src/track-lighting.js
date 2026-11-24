@@ -1,4 +1,8 @@
 import * as T from 'three/webgpu';
+import {
+  abs, dot, equirectUV, float, floor, fract, length, max, mix, normalize,
+  positionLocal, pow, smoothstep, sin, step, texture, uniform, vec2, vec3,
+} from 'three/tsl';
 import { times } from './conditions.js';
 
 export const activeFloodlightCount=9;
@@ -9,76 +13,59 @@ function atmosphere(scene, panorama) {
     valley:{value:texture}, hasValley:{value:Number(Boolean(texture))}, sun:{value:new T.Vector3()},
     phase:{value:0}, rain:{value:0}, clock:{value:0},
   };
-  const sky = new T.Mesh(new T.SphereGeometry(1320, 48, 28), new T.ShaderMaterial({
-    uniforms, side:T.BackSide, depthWrite:false, depthTest:false,
-    vertexShader:`
-      varying vec3 direction;
-      void main() {
-        direction = position;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }`,
-    fragmentShader:`
-      #include <common>
-      uniform sampler2D valley;
-      uniform float hasValley, phase, rain, clock;
-      uniform vec3 sun;
-      varying vec3 direction;
-      float hash(vec2 p) {
-        return fract(sin(dot(p, vec2(126.1, 311.7))) * 43758.5453);
-      }
-      float noise(vec2 p) {
-        vec2 i=floor(p), f=fract(p);
-        f=f*f*(3.0-2.0*f);
-        return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),
-          mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);
-      }
-      void main() {
-        vec3 ray = normalize(direction);
-        vec3 rotated = vec3(.7518*ray.x-.6594*ray.z,ray.y,.6594*ray.x+.7518*ray.z);
-        vec2 uv=equirectUv(rotated);
-        float height=smoothstep(-.04,.64,ray.y);
-        vec3 photo=mix(vec3(.59,.72,.78),vec3(.15,.32,.54),height);
-        if(hasValley>.5) photo=texture2D(valley,uv).rgb;
-        float skyMask=smoothstep(.075,.37,ray.y);
-        float sunDot=max(0.0,dot(ray,sun));
-        float luma=dot(photo,vec3(.213,.715,.072));
-        float dusk=1.0-abs(phase-1.0);
-        float night=max(0.0,phase-1.0);
-        vec3 color=mix(photo,photo*vec3(.66,.57,.59),dusk);
-        color+=dusk * pow(sunDot,5.0)*skyMask*vec3(.57,.21,.063)*(1.0-height*.57);
-        vec2 clouds=ray.xz * (5.0/max(.27,ray.y+.42))+clock*.012;
-        float cloud=noise(clouds)*.6+noise(clouds*2.7)*.29+noise(clouds*6.0)*.11;
-        vec3 overcast=mix(vec3(.091,.121,.147),vec3(.33,.36,.41),smoothstep(.18,.86,cloud));
-        vec3 rainValley=mix(vec3(luma)*vec3(.46,.53,.59),overcast,skyMask*.89);
-        color=mix(color,rainValley,rain);
-        vec3 nightSky=mix(vec3(.034,.061,.112),vec3(.007,.018,.048),height);
-        nightSky+=pow(max(dot(ray,normalize(vec3(.35,.37,-.85))),0.0),14.0)*vec3(.013,.027,.055);
-        vec2 starField=uv*vec2(900.0,440.0), starCell=floor(starField);
-        float stars=step(.994,hash(starCell)) *
-          (1.0-smoothstep(.055,.30,length(fract(starField)-.5)));
-        vec3 moonDir=normalize(vec3(.39,.34,-.79));
-        float moon=max(dot(moonDir,ray),0.0);
-        nightSky+= (1.0-rain) * (stars*.49*height+
-          smoothstep(.99993,.99998,moon)*.81+pow(moon,210.0)*.039)*vec3(.77,.86,1);
-        vec3 darkValley=photo*vec3(.046,.073,.118);
-        color=mix(color,mix(darkValley,nightSky*(1.0+rain*.36*cloud),skyMask),night);
-
-        vec3 n=normalize(cross(sun,vec3(0,1,0)));
-        float angle=atan(dot(ray,n), dot(ray,cross(sun,n)));
-        float spokes=pow(.5+.5*cos(angle*13.0+1.6*sin(angle*3.0)),10.0);
-        float sunDisk=smoothstep(.99991,.999975,sunDot);
-        float rays=pow(sunDot,100.0)*(.22+spokes*.19)+pow(sunDot,13.0)*.097;
-        vec3 glow=mix(vec3(1,.71,.37),vec3(1,.46,.19),dusk);
-        color+=(1.0-rain)*(1.0-night)*glow*(rays+sunDisk*6.4)*smoothstep(.06,.155,ray.y);
-        gl_FragColor=vec4(color,1);
-        #include <tonemapping_fragment>
-        #include <colorspace_fragment>
-      }`,
-  }));
+  const phase=uniform(0), rain=uniform(0), clock=uniform(0), sun=uniform(new T.Vector3());
+  const skyMaterial=new T.MeshBasicNodeMaterial({side:T.BackSide,depthWrite:false,depthTest:false});
+  const ray=normalize(positionLocal);
+  const rotated=vec3(ray.x.mul(.7518).sub(ray.z.mul(.6594)),ray.y,
+    ray.x.mul(.6594).add(ray.z.mul(.7518)));
+  const skyUv=equirectUV(rotated);
+  const height=smoothstep(-.04,.64,ray.y);
+  let photo=mix(vec3(.59,.72,.78),vec3(.15,.32,.54),height);
+  if(texture) photo=textureNode(texture,skyUv).rgb;
+  const skyMask=smoothstep(.075,.37,ray.y);
+  const sunDot=max(0,dot(ray,sun));
+  const luma=dot(photo,vec3(.213,.715,.072));
+  const dusk=float(1).sub(abs(phase.sub(1)));
+  const night=max(0,phase.sub(1));
+  let color=mix(photo,photo.mul(vec3(.66,.57,.59)),dusk);
+  color=color.add(dusk.mul(pow(sunDot,5)).mul(skyMask)
+    .mul(vec3(.57,.21,.063)).mul(float(1).sub(height.mul(.57))));
+  const clouds=ray.xz.mul(float(5).div(max(.27,ray.y.add(.42)))).add(clock.mul(.012));
+  const cloud=noise(clouds).mul(.6).add(noise(clouds.mul(2.7)).mul(.29))
+    .add(noise(clouds.mul(6)).mul(.11));
+  const overcast=mix(vec3(.091,.121,.147),vec3(.33,.36,.41),smoothstep(.18,.86,cloud));
+  const rainValley=mix(vec3(luma).mul(vec3(.46,.53,.59)),overcast,skyMask.mul(.89));
+  color=mix(color,rainValley,rain);
+  const nightSky=mix(vec3(.034,.061,.112),vec3(.007,.018,.048),height);
+  const starField=skyUv.mul(vec2(900,440));
+  const stars=step(.994,hash(floor(starField)))
+    .mul(float(1).sub(smoothstep(.055,.30,length(fract(starField).sub(.5)))));
+  const moon=max(dot(normalize(vec3(.39,.34,-.79)),ray),0);
+  const moonGlow=smoothstep(.99993,.99998,moon).mul(.81).add(pow(moon,210).mul(.039));
+  const nightWithStars=nightSky.add(float(1).sub(rain)
+    .mul(stars.mul(.49).mul(height).add(moonGlow)).mul(vec3(.77,.86,1)));
+  const darkValley=photo.mul(vec3(.046,.073,.118));
+  color=mix(color,mix(darkValley,nightWithStars.mul(float(1).add(rain.mul(.36).mul(cloud))),skyMask),night);
+  const sunDisk=smoothstep(.99991,.999975,sunDot);
+  const sunGlow=pow(sunDot,100).mul(.29).add(pow(sunDot,13).mul(.097)).add(sunDisk.mul(6.4));
+  color=color.add(float(1).sub(rain).mul(float(1).sub(night))
+    .mul(mix(vec3(1,.71,.37),vec3(1,.46,.19),dusk)).mul(sunGlow)
+    .mul(smoothstep(.06,.155,ray.y)));
+  skyMaterial.colorNode=color;
+  const sky = new T.Mesh(new T.SphereGeometry(1320,48,28),skyMaterial);
   sky.renderOrder = -100;
   sky.frustumCulled = false;
   scene.add(sky);
-  return {sky, uniforms};
+  return {sky, uniforms, nodes:{phase,rain,clock,sun}};
+}
+
+function textureNode(map, mapUv) { return texture(map,mapUv); }
+function hash(point) { return fract(sin(dot(point,vec2(126.1,311.7))).mul(43758.5453)); }
+function noise(point) {
+  const cell=floor(point), offset=fract(point);
+  const f=offset.mul(offset).mul(vec2(3).sub(offset.mul(2)));
+  return mix(mix(hash(cell),hash(cell.add(vec2(1,0))),f.x),
+    mix(hash(cell.add(vec2(0,1))),hash(cell.add(vec2(1,1))),f.x),f.y);
 }
 
 function floodlights(scene, track) {
@@ -129,28 +116,29 @@ function floodlights(scene, track) {
   masts.castShadow=true;
   scene.add(footings,masts,frames,heads,emitters);
 
-  const glowGeometry=new T.BufferGeometry();
-  glowGeometry.setAttribute('position',new T.Float32BufferAttribute(glowPositions,3));
-  const glow = new T.Points(glowGeometry,new T.ShaderMaterial({
-    uniforms:{level:{value:0}, rain:{value:0}},
-    vertexShader:`
-      uniform float rain;
-      void main(){
-        vec4 view=modelViewMatrix*vec4(position,1.);
-        gl_Position=projectionMatrix*view;
-        gl_PointSize=clamp((550.+rain*550.)/max(1.,-view.z),4.,105.);
-      }`,
-    fragmentShader:`
-      uniform float level,rain;
-      void main(){
-        float radius=length(gl_PointCoord-.5)*2.;
-        float a=max(0.,1.-radius);
-        gl_FragColor=vec4(.70,.83,1.,(pow(a,4.)*.52+pow(a,1.75)*rain*.13)*level);
-      }`,
-    depthWrite:false,transparent:true,blending:T.AdditiveBlending,
-  }));
-  glow.frustumCulled=false;
-  scene.add(glow);
+  const glowCanvas=document.createElement('canvas');
+  glowCanvas.width=glowCanvas.height=64;
+  const glowContext=glowCanvas.getContext('2d');
+  const glowGradient=glowContext.createRadialGradient(32,32,2,32,32,31);
+  glowGradient.addColorStop(0,'rgba(255,255,255,.66)');
+  glowGradient.addColorStop(.34,'rgba(224,239,255,.30)');
+  glowGradient.addColorStop(1,'rgba(180,213,255,0)');
+  glowContext.fillStyle=glowGradient;
+  glowContext.fillRect(0,0,64,64);
+  const glowMaterial=new T.SpriteNodeMaterial({
+    map:new T.CanvasTexture(glowCanvas),color:0xb5d3ff,transparent:true,opacity:0,
+    depthWrite:false,blending:T.AdditiveBlending,
+  });
+  const glowSprites=glowPositions.reduce((sprites,_,i)=>{
+    if(i%3!==0) return sprites;
+    const sprite=new T.Sprite(glowMaterial);
+    sprite.position.fromArray(glowPositions,i*3);
+    sprite.scale.setScalar(.72);
+    sprite.visible=false;
+    scene.add(sprite);
+    sprites.push(sprite);
+    return sprites;
+  },[]);
 
   const lights=Array.from({length:Math.min(activeFloodlightCount,count)},(_,i)=>{
     const light=new T.SpotLight(i%3===2?0xffe1bc:0xe5edff,0,48,.94,.63,2);
@@ -166,6 +154,7 @@ function floodlights(scene, track) {
   const reflections={
     lampPoints:{value:Array.from({length:activeFloodlightCount},()=>new T.Vector3(1e4,10,1e4))},
     lampReflection:{value:0},
+    lampReflectionNode:uniform(0),
   };
   let level=0, nearest=-1;
   return {
@@ -174,10 +163,13 @@ function floodlights(scene, track) {
       level=power;
       nearest=-1;
       reflections.lampReflection.value=wet?power:0;
+      reflections.lampReflectionNode.value=wet?power:0;
       bulbs.emissiveIntensity=power*3.4;
-      glow.material.uniforms.level.value=power;
-      glow.material.uniforms.rain.value=Number(wet);
-      glow.visible=power>0;
+      glowMaterial.opacity=power*.82;
+      glowSprites.forEach(sprite=>{
+        sprite.visible=power>0;
+        sprite.scale.setScalar(wet?1.04:.72);
+      });
       lights.forEach((light,i)=>{
         light.visible=power>0;
         light.intensity=power*(i%3===2?630:755);
@@ -204,7 +196,7 @@ function floodlights(scene, track) {
 }
 
 export function addTrackLighting(scene, renderer, track, panorama) {
-  const {sky,uniforms}=atmosphere(scene,panorama);
+  const {sky,uniforms,nodes}=atmosphere(scene,panorama);
   if (panorama) {
     scene.environment=panorama.lighting;
     scene.environmentRotation.y=panorama.sameExposure ? .72 : -.85;
@@ -227,6 +219,9 @@ export function addTrackLighting(scene, renderer, track, panorama) {
       uniforms.sun.value.fromArray(preset.sun).normalize();
       uniforms.phase.value=preset.phase;
       uniforms.rain.value=rain;
+      nodes.sun.value.copy(uniforms.sun.value);
+      nodes.phase.value=preset.phase;
+      nodes.rain.value=rain;
       skyLight.color.setHex(wet ? (night?0x809cc7:0xb9cbdf) : preset.sky);
       skyLight.groundColor.setHex(night?0x37465f:wet?0x596878:0x7e775f);
       skyLight.intensity=preset.fill + (wet&&!night ? .10 : 0);
@@ -243,6 +238,7 @@ export function addTrackLighting(scene, renderer, track, panorama) {
     update(kart,camera,dt) {
       sky.position.copy(camera.position);
       uniforms.clock.value+=dt;
+      nodes.clock.value=uniforms.clock.value;
       sun.target.position.set(kart.x,0,kart.z);
       sun.position.copy(sun.target.position).addScaledVector(uniforms.sun.value,75);
       lamps.update(kart);

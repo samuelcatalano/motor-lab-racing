@@ -11,6 +11,12 @@ import { addTracksideDetails } from './trackside-view.js';
 import { activeFloodlightCount, addTrackLighting } from './track-lighting.js';
 import { addRain, addWaterBeading } from './weather-effects.js';
 import { createWebGpuRenderer } from './webgpu-renderer.js';
+import {
+  abs, attribute, cameraPosition, clamp, dFdx, dFdy, dot, exp, float, floor, fract, fwidth,
+  length, materialColor, materialEmissive, materialNormal, materialRoughness,
+  max, mix, normalize, positionLocal, pow, smoothstep, sin, texture, uniform, uv,
+  vec2, vec3,
+} from 'three/tsl';
 
 const material = (color, roughness = .8, metalness = 0) =>
   new T.MeshStandardMaterial({color, roughness, metalness});
@@ -237,7 +243,20 @@ function tireBarriers(scene, track) {
 }
 
 // A strip in world coordinates keeps the photographed aggregate at a constant size.
-function roadMaterial(track, anisotropy, road, roadDetail, wetness, rainClock, reflections) {
+function roadHash(point) {
+  return fract(sin(dot(point, vec2(91.7, 278.3))).mul(38761.13));
+}
+
+function roadNoise(point) {
+  const cell = floor(point);
+  const offset = fract(point);
+  const smoothed = offset.mul(offset).mul(vec2(3).sub(offset.mul(2)));
+  const a = mix(roadHash(cell), roadHash(cell.add(vec2(1, 0))), smoothed.x);
+  const b = mix(roadHash(cell.add(vec2(0, 1))), roadHash(cell.add(vec2(1, 1))), smoothed.x);
+  return mix(a, b, smoothed.y);
+}
+
+export function roadMaterial(track, anisotropy, road, roadDetail, wetness, rainClock, reflections) {
   const maps=road ?? surfaceMaps([62, 62, 60], track.seed + 2, 36, anisotropy);
   for (const map of Object.values(maps)) {
     map.wrapS = map.wrapT = T.RepeatWrapping;
@@ -248,106 +267,85 @@ function roadMaterial(track, anisotropy, road, roadDetail, wetness, rainClock, r
     map.wrapS = map.wrapT = T.RepeatWrapping;
     map.anisotropy = anisotropy;
   }
-  const asphalt = new T.MeshStandardMaterial({
+  const asphalt = new T.MeshStandardNodeMaterial({
     ...maps, bumpScale:.09, color: 0xe4e9f1, roughness: .94,
     normalScale: new T.Vector2(.74, .74), envMapIntensity: .43,
   });
-  // Wear is measured across the lane; aggregate stays in world coordinates.
-  asphalt.onBeforeCompile = shader => {
-    shader.uniforms.trackWet=wetness;
-    shader.uniforms.rainClock=rainClock;
-    Object.assign(shader.uniforms,reflections);
-    if (roadDetail) {
-      shader.uniforms.aerialWear = {value:roadDetail.wear};
-      shader.uniforms.roadAggregate = {value:roadDetail.aggregate};
-      shader.defines = {...shader.defines, PHOTOGRAPHIC_ROAD:1};
-    }
-    shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute float lane; varying float vLane; varying vec2 vRoad;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvLane = lane; vRoad = position.xz;');
-    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `
-      #include <common>
-      varying float vLane;
-      varying vec2 vRoad;
-      uniform float trackWet,rainClock;
-      uniform vec3 lampPoints[${activeFloodlightCount}];
-      uniform float lampReflection;
-      #ifdef PHOTOGRAPHIC_ROAD
-      uniform sampler2D aerialWear;
-      uniform sampler2D roadAggregate;
-      #endif
-      float roadHash(vec2 p) { return fract(sin(dot(p,vec2(91.7,278.3))) * 38761.13); }
-      float roadNoise(vec2 p) {
-        vec2 i = floor(p), f = fract(p);
-        f = f*f*(3.0-2.0*f);
-        return mix(mix(roadHash(i),roadHash(i+vec2(1,0)),f.x),
-                   mix(roadHash(i+vec2(0,1)),roadHash(i+vec2(1,1)),f.x),f.y);
-      }`).replace('#include <map_fragment>', `
-      #include <map_fragment>
-      float broad = roadNoise(vMapUv * .34) * .64 + roadNoise(vMapUv * 1.18) * .36;
-      float travelled = 1.0 - smoothstep(.20,.69,abs(vLane));
-      float polished = travelled * (.43 + .50 * broad);
-      float shoulder = smoothstep(.77,1.0,abs(vLane));
-      float spots = roadNoise(vMapUv * 2.9);
-      diffuseColor.rgb *= .86 + .32 * broad - .19 * polished;
-      diffuseColor.rgb *= 1.0 - .13 * smoothstep(.75,.93,spots);
-      diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.14,1.07,.91),shoulder*.53);
-      #ifdef PHOTOGRAPHIC_ROAD
-      vec2 wornUv = mat2(.93,.37,-.37,.93) * vMapUv * .092;
-      vec3 agedSurface = texture2D(aerialWear, wornUv).rgb;
-      float worn = dot(agedSurface,vec3(.2126,.7152,.0722));
-      float grain = dot(texture2D(roadAggregate,vMapUv*1.84+vec2(.12,.36)).rgb,vec3(.2126,.7152,.0722));
-      diffuseColor.rgb *= mix(.70,1.25,smoothstep(.075,.22,worn));
-      diffuseColor.rgb *= clamp(.78+grain*10.0,.74,1.30);
-      #endif
-      float water=0.0;
-      float ripple=0.0;
-      if(trackWet>.001){
-        vec2 terrain=mat2(.82,.57,-.57,.82)*vRoad;
-        float seep=roadNoise(terrain*vec2(.21,.51))*.67+roadNoise(vRoad*1.12)*.33;
-        float pool=smoothstep(.42,.69,seep+shoulder*.08);
-        water=trackWet*(.46+.54*pool);
-        diffuseColor.rgb*=mix(vec3(1),vec3(.49,.55,.61),water);
-        vec2 tiles=vRoad*4.0;
-        vec2 cell=floor(tiles);
-        float t=fract(rainClock*1.76+roadHash(cell));
-        vec2 offset=.26+.49*vec2(roadHash(cell+vec2(31.,11.)),roadHash(cell+vec2(61.,73.)));
-        float d=length(fract(tiles)-offset);
-        ripple=(1.0-smoothstep(.011,.044,abs(d-t*.28)))*(1.0-t)*pool;
-        ripple*=1.-smoothstep(.045,.18,length(fwidth(tiles)));
-      }
-    `).replace('#include <roughnessmap_fragment>', `
-      #include <roughnessmap_fragment>
-      roughnessFactor = clamp(roughnessFactor * .77 + .13 + .09 * spots - polished * .13,.55,.99);
-      roughnessFactor = mix(roughnessFactor,.095+.13*spots,water*.94);
-    `).replace('#include <normal_fragment_maps>', `
-      #include <normal_fragment_maps>
-      normal=normalize(normal+vec3(dFdx(ripple),dFdy(ripple),0.)*water*.53);
-    `).replace('#include <opaque_fragment>', `
-      if(lampReflection > .001 && water > .01) {
-        vec3 pointOnRoad=vec3(vRoad.x,.008,vRoad.y);
-        vec3 view=normalize(cameraPosition-pointOnRoad);
-        vec3 mirror=vec3(-view.x,view.y,-view.z);
-        vec3 sheen=vec3(0.);
-        for(int i=0;i<${activeFloodlightCount};i++){
-          vec3 beam=lampPoints[i]-pointOnRoad;
-          float dist=length(beam);
-          vec3 source=beam/max(dist,.001);
-          vec2 span=normalize(vec2(source.z,-source.x)+vec2(.00001));
-          float sideways=dot(mirror.xz-source.xz,span);
-          float vertical=mirror.y-source.y;
-          float grain=spots*.68+ripple*.32;
-          float streak=exp(-sideways*sideways*(5700.+grain*6200.)
-                           -vertical*vertical*(31.+grain*23.));
-          streak*=1.-smoothstep(27.,63.,dist);
-          sheen+=vec3(.52,.66,.85)*streak*(.17+grain*.24)*water*water;
-        }
-        outgoingLight+=sheen*lampReflection;
-      }
-      #include <opaque_fragment>
-    `);
-  };
-  asphalt.customProgramCacheKey = () => roadDetail ? 'road-photo' : 'road-fallback';
+  const uvRoad = uv();
+  const lane = abs(attribute('lane'));
+  const broad = roadNoise(uvRoad.mul(.34)).mul(.64).add(roadNoise(uvRoad.mul(1.18)).mul(.36));
+  const travelled = float(1).sub(smoothstep(.20, .69, lane));
+  const polished = travelled.mul(float(.43).add(broad.mul(.50)));
+  const shoulder = smoothstep(.77, 1, lane);
+  const spots = roadNoise(uvRoad.mul(2.9));
+  let colorFactor = float(.86).add(broad.mul(.32)).sub(polished.mul(.19));
+  colorFactor = colorFactor.mul(float(1).sub(smoothstep(.75, .93, spots).mul(.13)));
+  colorFactor = mix(colorFactor, colorFactor.mul(vec3(1.14, 1.07, .91)), shoulder.mul(.53));
+
+  if (roadDetail) {
+    const wornUv = vec2(
+      uvRoad.x.mul(.93).add(uvRoad.y.mul(.37)),
+      uvRoad.x.mul(-.37).add(uvRoad.y.mul(.93)),
+    ).mul(.092);
+    const agedSurface = texture(roadDetail.wear, wornUv).rgb;
+    const worn = dot(agedSurface, vec3(.2126, .7152, .0722));
+    const aggregateUv = uvRoad.mul(1.84).add(vec2(.12, .36));
+    const grain = dot(texture(roadDetail.aggregate, aggregateUv).rgb, vec3(.2126, .7152, .0722));
+    colorFactor = colorFactor.mul(mix(.70, 1.25, smoothstep(.075, .22, worn)));
+    colorFactor = colorFactor.mul(clamp(float(.78).add(grain.mul(10)), .74, 1.30));
+  }
+
+  const roadPosition = positionLocal.xz;
+  const terrain = vec2(
+    roadPosition.x.mul(.82).add(roadPosition.y.mul(.57)),
+    roadPosition.x.mul(-.57).add(roadPosition.y.mul(.82)),
+  );
+  const seep = roadNoise(terrain.mul(vec2(.21, .51))).mul(.67)
+    .add(roadNoise(roadPosition.mul(1.12)).mul(.33));
+  const pool = smoothstep(.42, .69, seep.add(shoulder.mul(.08)));
+  const water = wetness.mul(float(.46).add(pool.mul(.54)));
+  colorFactor = colorFactor.mul(mix(vec3(1), vec3(.49, .55, .61), water));
+
+  const tiles = roadPosition.mul(4);
+  const cell = floor(tiles);
+  const phase = fract(rainClock.mul(1.76).add(roadHash(cell)));
+  const rippleOffset = vec2(
+    roadHash(cell.add(vec2(31, 11))),
+    roadHash(cell.add(vec2(61, 73))),
+  ).mul(.49).add(.26);
+  const distance = length(fract(tiles).sub(rippleOffset));
+  let ripple = float(1).sub(smoothstep(.011, .044, abs(distance.sub(phase.mul(.28)))))
+    .mul(float(1).sub(phase)).mul(pool);
+  ripple = ripple.mul(float(1).sub(smoothstep(.045, .18, length(fwidth(tiles)))));
+
+  let sheen = vec3(0);
+  const pointOnRoad = vec3(roadPosition.x, .008, roadPosition.y);
+  const viewDirection = normalize(cameraPosition.sub(pointOnRoad));
+  const mirror = vec3(viewDirection.x.negate(), viewDirection.y, viewDirection.z.negate());
+  for (const lamp of reflections.lampPoints.value) {
+    const beam = uniform(lamp).sub(pointOnRoad);
+    const distanceToLamp = length(beam);
+    const source = beam.div(max(distanceToLamp, .001));
+    const span = normalize(vec2(source.z, source.x.negate()).add(.00001));
+    const sideways = dot(mirror.xz.sub(source.xz), span);
+    const vertical = mirror.y.sub(source.y);
+    const reflectionGrain = spots.mul(.68).add(ripple.mul(.32));
+    let streak = exp(sideways.mul(sideways).mul(float(5700).add(reflectionGrain.mul(6200))).negate()
+      .sub(vertical.mul(vertical).mul(float(31).add(reflectionGrain.mul(23)))));
+    streak = streak.mul(float(1).sub(smoothstep(27,63,distanceToLamp)));
+    sheen = sheen.add(vec3(.52,.66,.85).mul(streak)
+      .mul(float(.17).add(reflectionGrain.mul(.24))).mul(water).mul(water));
+  }
+  sheen = sheen.mul(reflections.lampReflectionNode);
+
+  asphalt.colorNode = materialColor.mul(colorFactor);
+  asphalt.roughnessNode = mix(
+    clamp(materialRoughness.mul(.77).add(.13).add(spots.mul(.09)).sub(polished.mul(.13)), .55, .99),
+    float(.095).add(spots.mul(.13)),
+    water.mul(.94),
+  );
+  asphalt.normalNode = normalize(materialNormal.add(vec3(dFdx(ripple), dFdy(ripple), 0).mul(water).mul(.53)));
+  asphalt.emissiveNode = materialEmissive.add(sheen);
   return asphalt;
 }
 
@@ -577,15 +575,16 @@ export async function createWorld(canvas, track) {
   const scene = new T.Scene();
   const lighting=addTrackLighting(scene,renderer,track,panorama);
   const wetness={value:0}, rainClock={value:0};
+  const wetnessNode=uniform(0), rainClockNode=uniform(0);
   const anisotropy = Math.min(8, renderer.getMaxAnisotropy());
   terrain(scene, track, anisotropy, forest, grass, Boolean(panorama?.photo));
-  const asphalt=circuit(scene,track,anisotropy,road,roadDetail,wetness,rainClock,lighting.reflections);
+  const asphalt=circuit(scene,track,anisotropy,road,roadDetail,wetnessNode,rainClockNode,lighting.reflections);
   const contact = makeContactShadow();
   scene.add(contact);
   const kartView = buildKart(scene, kartBody);
   const cockpit = makeCockpit(kartView);
-  addWaterBeading(kartView.group,wetness);
-  const rain=addRain(scene,track.seed,wetness);
+  addWaterBeading(kartView.group,wetnessNode);
+  const rain=addRain(scene,track.seed);
   const tireTrail = addTireTrail(scene, track, kartView.rearWheels);
   const camera = new T.PerspectiveCamera(56, 1, .07, 1800);
   const eye = new T.Vector3(), target = new T.Vector3(), look = new T.Vector3();
@@ -593,7 +592,6 @@ export async function createWorld(canvas, track) {
   function resize() {
     const {clientWidth, clientHeight} = canvas;
     renderer.setSize(clientWidth, clientHeight, false);
-    tireTrail.resize(canvas.height);
     camera.aspect = clientWidth / Math.max(1, clientHeight);
     camera.updateProjectionMatrix();
   }
@@ -602,6 +600,7 @@ export async function createWorld(canvas, track) {
   return {
     setConditions(hour,wet){
       wetness.value=Number(wet);
+      wetnessNode.value=Number(wet);
       asphalt.envMapIntensity=wet ? .81 : .43;
       contact.material.opacity=wet ? .86 : 1;
       lighting.set(hour,wet);
@@ -610,7 +609,7 @@ export async function createWorld(canvas, track) {
     clearTireTrail() { tireTrail.reset(); },
     render(kart, dt, mode, snap = false, lapTime = '—') {
       kartView.update(kart, dt);
-      tireTrail.update(kart, dt);
+      tireTrail.update(kart, dt, camera);
       contact.position.set(kart.x, .034, kart.z);
       contact.rotation.y = Math.PI / 2 - kart.angle;
       // Pull back as the viewport narrows so the rear wheels stay in frame.
@@ -650,6 +649,7 @@ export async function createWorld(canvas, track) {
       lastKartPosition.set(kart.x, 0, kart.z);
       camera.lookAt(look);
       rainClock.value+=dt;
+      rainClockNode.value=rainClock.value;
       lighting.update(kart,camera,dt);
       rain.update(kart,dt);
       renderer.render(scene, camera);

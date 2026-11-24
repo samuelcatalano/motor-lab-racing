@@ -1,4 +1,5 @@
 import * as T from 'three/webgpu';
+import {attribute, min, mix, step, texture, uv, vec3} from 'three/tsl';
 import { random } from './surfaces.js';
 import { addSkidMarks } from './skid-marks.js';
 
@@ -26,43 +27,31 @@ function wispMap() {
 
 export function addTireTrail(scene, track, rearWheels) {
   const geometry = new T.BufferGeometry();
-  const buffer = (name, width) => {
-    const attribute = new T.Float32BufferAttribute(new Float32Array(capacity * width), width)
-      .setUsage(T.DynamicDrawUsage);
-    geometry.setAttribute(name, attribute);
-    return attribute;
-  };
-  const positions = buffer('position', 3);
-  const style = buffer('wispStyle', 3);
-  const viewport = {value:1};
-  const material = new T.ShaderMaterial({
-    uniforms:{wisp:{value:wispMap()}, viewport},
-    vertexShader:`
-      uniform float viewport;
-      attribute vec3 wispStyle;
-      varying vec2 style;
-      void main() {
-        style = wispStyle.yz;
-        vec4 center = modelViewMatrix * vec4(position, 1.0);
-        gl_Position = projectionMatrix * center;
-        gl_PointSize = clamp(wispStyle.x * viewport * projectionMatrix[1][1] * .5 / max(.2, -center.z), 1.0, 190.0);
-      }`,
-    fragmentShader:`
-      uniform sampler2D wisp;
-      varying vec2 style;
-      void main() {
-        float density = texture2D(wisp, gl_PointCoord).a * style.x;
-        vec3 tint = mix(vec3(.67,.70,.72), vec3(.55,.43,.29), min(1.,style.y));
-        tint = mix(tint,vec3(.58,.72,.81),step(1.5,style.y));
-        gl_FragColor = vec4(tint, density);
-        #include <tonemapping_fragment>
-        #include <colorspace_fragment>
-      }`,
-    transparent:true,
-    depthWrite:false,
-  });
-  const cloud = new T.Points(geometry, material);
+  const positions=new T.Float32BufferAttribute(new Float32Array(capacity*4*3),3).setUsage(T.DynamicDrawUsage);
+  const uvValues=new Float32Array(capacity*4*2);
+  const densityAttribute=new T.Float32BufferAttribute(new Float32Array(capacity*4),1).setUsage(T.DynamicDrawUsage);
+  const kind=new T.Float32BufferAttribute(new Float32Array(capacity*4),1);
+  const indices=new Uint16Array(capacity*6);
+  for(let i=0;i<capacity;i++) {
+    const v=i*4, u=i*8;
+    uvValues.set([0,0,1,0,0,1,1,1],u);
+    indices.set([v,v+2,v+1,v+1,v+2,v+3],i*6);
+  }
+  geometry.setAttribute('position',positions);
+  geometry.setAttribute('uv',new T.BufferAttribute(uvValues,2));
+  geometry.setAttribute('density',densityAttribute);
+  geometry.setAttribute('kind',kind);
+  geometry.setIndex(new T.BufferAttribute(indices,1));
+  geometry.setDrawRange(0,0);
+  const wisp=wispMap();
+  const material = new T.MeshBasicNodeMaterial({transparent:true,depthWrite:false,side:T.DoubleSide});
+  const sprite=texture(wisp,uv());
+  const smokeTint=mix(vec3(.67,.70,.72),vec3(.55,.43,.29),min(attribute('kind'),1));
+  material.colorNode=mix(smokeTint,vec3(.58,.72,.81),step(1.5,attribute('kind'))).mul(sprite.rgb);
+  material.opacityNode=sprite.a.mul(attribute('density'));
+  const cloud = new T.Mesh(geometry, material);
   cloud.frustumCulled = false;
+  cloud.visible = false;
   cloud.renderOrder = 4;
   scene.add(cloud);
 
@@ -85,17 +74,16 @@ export function addTireTrail(scene, track, rearWheels) {
     });
   }
   return {
-    resize(height) { viewport.value = height; },
     reset() {
       for (const particle of particles) particle.life = 0;
       carry = 0;
       marks.reset();
     },
-    update(kart, dt) {
+    update(kart, dt, camera) {
       const {smoke = 0, dust = 0, spray = 0} = kart;
       const kind = spray > 0 ? 2 : Number(dust > smoke);
-      const density = Math.max(smoke, dust, spray);
-      carry += density * dt * (kind === 2 ? 49 : 34);
+      const effectDensity = Math.max(smoke, dust, spray);
+      carry += effectDensity * dt * (kind === 2 ? 49 : 34);
       const fx = Math.cos(kart.angle), fz = Math.sin(kart.angle);
       for (let i = 0; i < rearWheels.length; i++) {
         const wheel = rearWheels[i];
@@ -118,14 +106,24 @@ export function addTireTrail(scene, track, rearWheels) {
         particle.z += dt * particle.vz;
         particle.y += dt * .62;
         const phase = particle.age / particle.life;
-        positions.setXYZ(count, particle.x, particle.y, particle.z);
         const water = particle.kind === 2;
-        style.setXYZ(count, (water ? .23 : .35) + phase * 1.08,
-          Math.min(1, phase * 32) * (1 - phase) ** 1.18 * (water ? .67 : .53), particle.kind);
+        const size=(water ? .23 : .35)+phase*1.08;
+        const alpha=Math.min(1,phase*32)*(1-phase)**1.18*(water?.67:.53);
+        const center=new T.Vector3(particle.x,particle.y,particle.z);
+        const right=new T.Vector3(1,0,0).applyQuaternion(camera.quaternion).multiplyScalar(size*.5);
+        const up=new T.Vector3(0,1,0).applyQuaternion(camera.quaternion).multiplyScalar(size*.5);
+        const corners=[center.clone().sub(right).sub(up),center.clone().add(right).sub(up),
+          center.clone().sub(right).add(up),center.clone().add(right).add(up)];
+        for(let corner=0;corner<4;corner++) {
+          positions.setXYZ(count*4+corner,corners[corner].x,corners[corner].y,corners[corner].z);
+          densityAttribute.setX(count*4+corner,alpha);
+          kind.setX(count*4+corner,particle.kind);
+        }
         count++;
       }
-      geometry.setDrawRange(0, count);
-      if (count) positions.needsUpdate = style.needsUpdate = true;
+      geometry.setDrawRange(0, count*6);
+      cloud.visible=count>0;
+      if (count) positions.needsUpdate = densityAttribute.needsUpdate = kind.needsUpdate = true;
     },
   };
 }

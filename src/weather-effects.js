@@ -1,7 +1,12 @@
 import * as T from 'three/webgpu';
+import {
+  attribute, dFdx, dFdy, dot, float, floor, fract, length, materialColor,
+  materialNormal, materialRoughness, max, mix, normalize, positionLocal, positionView,
+  sin, smoothstep, uniform, vec2, vec3,
+} from 'three/tsl';
 import { random } from './surfaces.js';
 
-export function addRain(scene, trackSeed, wetness) {
+export function addRain(scene, trackSeed) {
   const amount=1400;
   const extent=30, ceiling=15;
   const rng=random(trackSeed+747);
@@ -17,26 +22,18 @@ export function addRain(scene, trackSeed, wetness) {
   const tips=new T.Float32BufferAttribute(new Float32Array(amount*2).map((_,i)=>i%2),1);
   geometry.setAttribute('position',positions);
   geometry.setAttribute('tip',tips);
-  const brightness={value:1};
-  const rain=new T.LineSegments(geometry,new T.ShaderMaterial({
-    uniforms:{wetness,brightness},
-    vertexShader:`
-      attribute float tip;
-      varying float fade;
-      void main(){
-        vec4 view=modelViewMatrix*vec4(position,1.);
-        gl_Position=projectionMatrix*view;
-        float d=length(view.xyz);
-        fade=mix(1.,.12,tip)*smoothstep(.48,2.2,d)*(1.-smoothstep(15.,38.,d));
-      }`,
-    fragmentShader:`
-      uniform float wetness,brightness;
-      varying float fade;
-      void main(){
-        gl_FragColor=vec4(.64,.76,.83,fade*wetness*brightness*.66);
-      }`,
+  const rainAmount=uniform(0), nightBrightness=uniform(1);
+  const rainMaterial=new T.LineBasicNodeMaterial({
+    color:0xa3c2d4,
     transparent:true,depthWrite:false,
-  }));
+  });
+  const tip=attribute('tip');
+  const viewDistance=length(positionView);
+  rainMaterial.opacityNode=mix(1,.12,tip)
+    .mul(smoothstep(.48,2.2,viewDistance))
+    .mul(float(1).sub(smoothstep(15,38,viewDistance)))
+    .mul(rainAmount).mul(nightBrightness).mul(.66);
+  const rain=new T.LineSegments(geometry,rainMaterial);
   rain.frustumCulled=false;
   rain.renderOrder=6;
   scene.add(rain);
@@ -45,7 +42,8 @@ export function addRain(scene, trackSeed, wetness) {
   return {
     set(hour,wet){
       rain.visible=wet;
-      brightness.value=hour==='night'?.87:.98;
+      rainAmount.value=Number(wet);
+      nightBrightness.value=hour==='night'?.87:.98;
     },
     update(kart,dt){
       if(!rain.visible){x=undefined;return;}
@@ -66,47 +64,46 @@ export function addRain(scene, trackSeed, wetness) {
 }
 
 export function addWaterBeading(group, wetness) {
-  const materials=new Set();
+  const replacements=new Map();
   group.traverse(node=>{
     if(!node.isMesh) return;
-    for(const mat of Array.isArray(node.material)?node.material:[node.material]) {
-      if(mat?.isMeshStandardMaterial) materials.add(mat);
-    }
+    const original=Array.isArray(node.material)?node.material:[node.material];
+    const converted=original.map(mat=>{
+      if(!mat?.isMeshStandardMaterial) return mat;
+      if(replacements.has(mat)) return replacements.get(mat);
+      const name=mat.name.toLowerCase();
+      const fabric=/cloth|glove|woven|pad|suit|lettering/.test(name);
+      const coating=new T.MeshStandardNodeMaterial().copy(mat);
+      const point=positionLocal;
+      const beadNoise = p => {
+        const cell=floor(p);
+        const jitter=vec2(
+          fract(sin(dot(cell,vec2(91.7,238.2))).mul(27345.67)),
+          fract(sin(dot(cell,vec2(19.3,143.9))).mul(27345.67)),
+        );
+        const local=fract(p).sub(vec2(.28).add(jitter.mul(.44))).mul(vec2(1,.82));
+        return float(1).sub(smoothstep(.070,.20,length(local)));
+      };
+      const beading=max(
+        beadNoise(point.xz.mul(53)),
+        beadNoise(point.zy.add(vec2(.12,.29)).mul(67)).mul(.72),
+      );
+      const tint=fabric?.24:.12;
+      const roughnessTarget=fabric?.59:.31;
+      const roughnessMix=fabric?.26:.65;
+      const beadMix=fabric?.29:.72;
+      coating.colorNode=materialColor.mul(float(1).sub(wetness.mul(float(tint).add(beading.mul(.12)))));
+      coating.roughnessNode=mix(
+        mix(materialRoughness,roughnessTarget,wetness.mul(roughnessMix)),
+        .11,
+        beading.mul(wetness).mul(beadMix),
+      );
+      coating.normalNode=normalize(materialNormal.add(
+        vec3(dFdx(beading),dFdy(beading),0).mul(wetness).mul(.23),
+      ));
+      replacements.set(mat,coating);
+      return coating;
+    });
+    node.material=Array.isArray(node.material)?converted:converted[0];
   });
-  for (const mat of materials) {
-    const name=mat.name.toLowerCase();
-    const fabric=/cloth|glove|woven|pad|suit|lettering/.test(name);
-    const existing=mat.onBeforeCompile.bind(mat);
-    const originalKey=mat.customProgramCacheKey();
-    mat.onBeforeCompile=shader=>{
-      existing(shader);
-      shader.uniforms.kartWet=wetness;
-      shader.vertexShader=shader.vertexShader
-        .replace('#include <common>','#include <common>\nvarying vec3 rainPosition;')
-        .replace('#include <begin_vertex>','#include <begin_vertex>\nrainPosition = position;');
-      shader.fragmentShader=shader.fragmentShader
-        .replace('#include <common>',`
-          #include <common>
-          uniform float kartWet;
-          varying vec3 rainPosition;
-          float waterBeads(vec2 p) {
-            vec2 cell=floor(p);
-            vec2 jitter=fract(sin(vec2(dot(cell,vec2(91.7,238.2)),dot(cell,vec2(19.3,143.9))))*27345.67);
-            vec2 local=(fract(p)-(.28+jitter*.44))*vec2(1.,.82);
-            return 1.-smoothstep(.070,.20,length(local));
-          }`)
-        .replace('#include <map_fragment>',`
-          #include <map_fragment>
-          float beading=max(waterBeads(rainPosition.xz*53.0),waterBeads((rainPosition.zy+vec2(.12,.29))*67.0)*.72);
-          diffuseColor.rgb *= 1.0-kartWet*(${fabric?'.24':'.12'}+beading*.12);`)
-        .replace('#include <roughnessmap_fragment>',`
-          #include <roughnessmap_fragment>
-          roughnessFactor=mix(roughnessFactor,${fabric?'.59':'.31'},kartWet*${fabric?'.26':'.65'});
-          roughnessFactor=mix(roughnessFactor,.11,beading*kartWet*${fabric?'.29':'.72'});`)
-        .replace('#include <normal_fragment_maps>',`
-          #include <normal_fragment_maps>
-          normal=normalize(normal+vec3(dFdx(beading),dFdy(beading),0.)*kartWet*.23);`);
-    };
-    mat.customProgramCacheKey=()=>originalKey+'|wet-coating|'+fabric;
-  }
 }

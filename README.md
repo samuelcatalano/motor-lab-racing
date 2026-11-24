@@ -9,6 +9,10 @@ npm run dev
 
 Abra o endereço exibido pelo Vite. Para produzir os arquivos estáticos de publicação, use `npm run build`. O resultado fica em `dist/`. Use `npm run preview` para servi-lo localmente.
 
+## Requisito do navegador
+
+O jogo requer WebGPU e um navegador/dispositivo com um adaptador WebGPU disponível. A renderização não usa WebGL como alternativa. Se WebGPU não estiver disponível, a tela informa o requisito e não inicia a corrida. Use uma versão atual do Chrome em um dispositivo com suporte a WebGPU para jogar.
+
 ## Pilotagem
 
 - WASD ou setas: acelerar, frear/dar ré e dirigir.
