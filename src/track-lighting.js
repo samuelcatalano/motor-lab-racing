@@ -73,7 +73,7 @@ function floodlights(scene, track) {
   const coordinates = [];
   const structure = new T.MeshStandardMaterial({color:0x616969,metalness:.32,roughness:.64});
   const housings = new T.MeshStandardMaterial({color:0x293537,metalness:.36,roughness:.58});
-  const bulbs = new T.MeshStandardMaterial({color:0xc1cbd2,emissive:0xd1eaff,emissiveIntensity:0});
+  const bulbs = new T.MeshStandardMaterial({color:0xffffff,emissive:0xffffff,emissiveIntensity:0});
   const footings = new T.InstancedMesh(new T.BoxGeometry(.82,.38,.81), structure, count);
   const masts = new T.InstancedMesh(new T.CylinderGeometry(.077,.151,10.9,9), structure, count);
   const frames = new T.InstancedMesh(new T.BoxGeometry(1.82,.105,.14), structure, count);
@@ -121,12 +121,12 @@ function floodlights(scene, track) {
   const glowContext=glowCanvas.getContext('2d');
   const glowGradient=glowContext.createRadialGradient(32,32,2,32,32,31);
   glowGradient.addColorStop(0,'rgba(255,255,255,.66)');
-  glowGradient.addColorStop(.34,'rgba(224,239,255,.30)');
-  glowGradient.addColorStop(1,'rgba(180,213,255,0)');
+  glowGradient.addColorStop(.34,'rgba(255,255,255,.30)');
+  glowGradient.addColorStop(1,'rgba(255,255,255,0)');
   glowContext.fillStyle=glowGradient;
   glowContext.fillRect(0,0,64,64);
   const glowMaterial=new T.SpriteNodeMaterial({
-    map:new T.CanvasTexture(glowCanvas),color:0xb5d3ff,transparent:true,opacity:0,
+    map:new T.CanvasTexture(glowCanvas),color:0xffffff,transparent:true,opacity:0,
     depthWrite:false,blending:T.AdditiveBlending,
   });
   const glowSprites=glowPositions.reduce((sprites,_,i)=>{
@@ -141,7 +141,7 @@ function floodlights(scene, track) {
   },[]);
 
   const lights=Array.from({length:Math.min(activeFloodlightCount,count)},(_,i)=>{
-    const light=new T.SpotLight(i%3===2?0xffe1bc:0xe5edff,0,48,.94,.63,2);
+    const light=new T.SpotLight(0xffffff,0,48,.94,.63,2);
     if(i===0) {
       light.castShadow=true;
       light.shadow.mapSize.set(1024,1024);
@@ -170,9 +170,9 @@ function floodlights(scene, track) {
         sprite.visible=power>0;
         sprite.scale.setScalar(wet?1.04:.72);
       });
-      lights.forEach((light,i)=>{
+      lights.forEach(light=>{
         light.visible=power>0;
-        light.intensity=power*(i%3===2?630:755);
+        light.intensity=power*713;
       });
     },
     update(kart) {
