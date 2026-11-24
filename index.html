@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111a19">
+  <link rel="icon" href="data:,">
+  <script>
+    if (location.protocol === 'file:') {
+      location.replace('http://127.0.0.1:4194/' + location.search + location.hash);
+    }
+  </script>
+  <link rel="stylesheet" href="/src/style.css">
+  <title>Motor Lab Racing · Contra o relógio</title>
+</head>
+<body>
+  <main>
+    <canvas id="scene" aria-label="Circuito 3D"></canvas>
+
+    <header class="topbar">
+      <div class="brand"><i aria-hidden="true"></i> MOTOR LAB <b>RACING</b></div>
+      <div class="top-actions">
+        <button id="sound" type="button" aria-pressed="false">Som</button>
+        <button id="camera" type="button" aria-label="Câmera atual: Traseira próxima. Alternar câmera" hidden>Câmera</button>
+        <button id="pause" type="button" hidden>Pausar</button>
+      </div>
+    </header>
+
+    <section class="hud" aria-label="Telemetria" hidden>
+      <div class="lap-hud">
+        <div class="timing">
+          <div><span class="label">Volta atual</span><strong id="current">—</strong></div>
+          <div><span class="label">Última</span><strong id="last">—</strong></div>
+          <div><span class="label">Recorde</span><strong id="best">—</strong></div>
+        </div>
+        <p class="conditions-hud" id="conditions-hud"></p>
+        <p id="status" role="status"></p>
+      </div>
+      <div class="telemetry">
+        <canvas id="map" width="256" height="151" aria-label="Mapa do circuito"></canvas>
+        <div class="speed"><strong id="speed">000</strong><span>km/h</span></div>
+      </div>
+    </section>
+
+    <section id="menu" class="overlay" aria-labelledby="title">
+      <div class="panel">
+        <p class="label eyebrow" id="mode">Contra o relógio</p>
+        <h1 id="title">Vale do Cedro</h1>
+        <p id="summary">Carregando circuito…</p>
+        <div class="conditions">
+          <label for="weather"><span class="label">Clima</span>
+            <select id="weather" disabled>
+              <option value="clear">Céu aberto</option>
+              <option value="rain">Chuva</option>
+            </select>
+          </label>
+          <label for="hour"><span class="label">Horário</span>
+            <select id="hour" disabled>
+              <option value="day">13:00 · Dia</option>
+              <option value="dusk">17:30 · Fim de tarde</option>
+              <option value="night">21:30 · Noite</option>
+            </select>
+          </label>
+        </div>
+        <div class="record"><span class="label">Recorde pessoal</span><strong id="menu-best">Sem volta registrada</strong></div>
+        <div class="menu-actions">
+          <button class="primary" id="start" type="button" disabled>Entrar na pista <span aria-hidden="true">↗</span></button>
+          <button id="restart" type="button" hidden>Nova sessão</button>
+          <button id="reload" type="button" hidden>Recarregar jogo</button>
+        </div>
+        <dl class="keys">
+          <div><dt><kbd>W</kbd> <kbd>S</kbd></dt><dd>Acelerar / frear</dd></div>
+          <div><dt><kbd>A</kbd> <kbd>D</kbd></dt><dd>Dirigir</dd></div>
+          <div><dt><kbd>C</kbd></dt><dd>Câmera</dd></div>
+          <div><dt><kbd>R</kbd></dt><dd>Reposicionar</dd></div>
+          <div><dt><kbd>Esc</kbd></dt><dd>Pausar</dd></div>
+        </dl>
+      </div>
+    </section>
+
+    <div id="touch" aria-label="Controles de pilotagem" hidden>
+      <div><button type="button" data-key="ArrowLeft" aria-label="Virar à esquerda">←</button>
+        <button type="button" data-key="ArrowRight" aria-label="Virar à direita">→</button></div>
+      <div><button type="button" data-key="ArrowDown" aria-label="Frear">↓</button>
+        <button type="button" data-key="ArrowUp" aria-label="Acelerar">↑</button></div>
+    </div>
+  </main>
+  <script>
+    document.getElementById('reload').addEventListener('click', () => location.reload());
+    addEventListener('error', event => {
+      if (!(event.target instanceof HTMLScriptElement) || event.target.type !== 'module') return;
+      document.getElementById('summary').textContent = 'O jogo não carregou. Recarregue para tentar novamente.';
+      document.getElementById('reload').hidden = false;
+    }, true);
+  </script>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
