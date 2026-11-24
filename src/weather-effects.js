@@ -1,4 +1,4 @@
-import * as T from 'three';
+import * as T from 'three/webgpu';
 import { random } from './surfaces.js';
 
 export function addRain(scene, trackSeed, wetness) {

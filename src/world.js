@@ -1,4 +1,4 @@
-import * as T from 'three';
+import * as T from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { buildKart, loadKartBody } from './kart-view.js';
 import { helmetLayer, makeCockpit } from './cockpit.js';
@@ -10,6 +10,7 @@ import { addTireTrail } from './tire-trail.js';
 import { addTracksideDetails } from './trackside-view.js';
 import { activeFloodlightCount, addTrackLighting } from './track-lighting.js';
 import { addRain, addWaterBeading } from './weather-effects.js';
+import { createWebGpuRenderer } from './webgpu-renderer.js';
 
 const material = (color, roughness = .8, metalness = 0) =>
   new T.MeshStandardMaterial({color, roughness, metalness});
@@ -567,7 +568,7 @@ export async function createWorld(canvas, track) {
     loadTrackFinishes(),
     loadKartBody(),
   ]);
-  const renderer = new T.WebGLRenderer({canvas, antialias:true});
+  const renderer = await createWebGpuRenderer(canvas);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = T.PCFShadowMap;
@@ -576,7 +577,7 @@ export async function createWorld(canvas, track) {
   const scene = new T.Scene();
   const lighting=addTrackLighting(scene,renderer,track,panorama);
   const wetness={value:0}, rainClock={value:0};
-  const anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  const anisotropy = Math.min(8, renderer.getMaxAnisotropy());
   terrain(scene, track, anisotropy, forest, grass, Boolean(panorama?.photo));
   const asphalt=circuit(scene,track,anisotropy,road,roadDetail,wetness,rainClock,lighting.reflections);
   const contact = makeContactShadow();

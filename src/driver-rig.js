@@ -1,4 +1,4 @@
-import { Euler, Quaternion, Vector3 } from 'three';
+import { Euler, Quaternion, Vector3 } from 'three/webgpu';
 
 const localAxis = new Vector3(0, 1, 0);
 const pedalAxis = new Vector3(1, 0, 0);

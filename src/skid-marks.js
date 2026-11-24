@@ -1,4 +1,4 @@
-import * as T from 'three';
+import * as T from 'three/webgpu';
 
 const capacity = 1024;
 const halfWidth = .078;

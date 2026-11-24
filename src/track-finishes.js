@@ -1,4 +1,4 @@
-import * as T from 'three';
+import * as T from 'three/webgpu';
 import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 
 export async function loadTrackFinishes() {

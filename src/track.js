@@ -1,4 +1,4 @@
-import * as T from 'three';
+import * as T from 'three/webgpu';
 
 export const tracks = [{
   id: 'vale-do-cedro-v1',

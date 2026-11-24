@@ -1,6 +1,7 @@
 import { tracks, makeTrack, makeTimer } from './track.js';
 import { drive, spawn } from './drive.js';
 import { createWorld } from './world.js';
+import { WebGPUUnavailableError } from './webgpu-renderer.js';
 import { makeSound } from './sound.js';
 import { times } from './conditions.js';
 
@@ -235,7 +236,9 @@ async function startGame() {
     window.addEventListener('resize', () => { snap = true; });
     requestAnimationFrame(frame);
   } catch (error) {
-    setText('summary', 'Não foi possível iniciar o 3D. Abra o jogo em um navegador com WebGL 2 e aceleração gráfica.');
+    setText('summary', error instanceof WebGPUUnavailableError
+      ? error.message
+      : 'Não foi possível iniciar a cena 3D. Verifique se o navegador pode usar WebGPU.');
     console.error(error);
   }
 }
