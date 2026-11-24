@@ -60,7 +60,30 @@ main {
 
 .brand b { color: var(--accent); }
 
-.brand i {
+.renderer-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .45em;
+  margin-left: .4em;
+  padding: .38em .58em;
+  border: 1px solid #8ed9a580;
+  border-radius: 999px;
+  background: #10251dcc;
+  color: #b8f1c4;
+  font: 750 .68rem/1 "Avenir Next", Avenir, sans-serif;
+  letter-spacing: .04em;
+  text-shadow: none;
+}
+
+.renderer-badge i {
+  width: .48em;
+  height: .48em;
+  border-radius: 50%;
+  background: #7be495;
+  box-shadow: 0 0 8px #7be495a6;
+}
+
+.brand > i {
   display: inline-block;
   width: 16px;
   height: 12px;

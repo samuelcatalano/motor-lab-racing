@@ -225,6 +225,7 @@ function frame(now) {
 async function startGame() {
   try {
     world = await createWorld(get('scene'), track);
+    get('renderer-status').hidden = false;
     applyConditions();
     world.render(kart, 0, camera, true);
     snap = false;
