@@ -33,10 +33,12 @@ O catálogo fica em `src/track.js`. Um traçado define ID, nome, largura, sement
 
 O grid e a torre dos boxes fazem parte do primeiro trecho de avaliação. O asfalto e o céu carregam como arquivos locais durante a inicialização. As fontes e licenças estão em `public/assets/vale-do-cedro/SOURCES.md`.
 
-O modelo autoral do kart fica em `public/assets/kart/kart-body.glb`. Para reconstruí-lo:
+O modelo autoral de produção — kart, piloto e materiais — vem de `go-kart/source/go-kart-assembled.blend`. O GLB carregado pelo jogo fica em `public/assets/kart/kart-body.glb` e usa o nível hero, com cerca de 90 mil triângulos. Para reconstruzir e publicar esse asset:
 
 ```sh
-blender --background --python tools/build-kart.py
+blender -b --python go-kart/scripts/package.py -- --output-root /tmp/go-kart-package
+cp /tmp/go-kart-package/production/go-kart-hero.glb public/assets/kart/kart-body.glb
+npm run build
 ```
 
 A simulação usa a mesma geometria de colisão e posição das rodas. Se o GLB não carregar, o jogo usa a versão anterior do modelo para que a sessão continue disponível.
