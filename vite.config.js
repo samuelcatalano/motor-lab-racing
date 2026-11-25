@@ -1,4 +1,4 @@
-import { createReadStream } from 'node:fs';
+import { createReadStream, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 
@@ -41,7 +41,7 @@ function servePreview(server) {
     const isNavigation = req.method === 'GET' && req.headers.accept?.includes('text/html');
     if (!isNavigation) return next();
     const url = new URL(req.url ?? '/', 'http://127.0.0.1');
-    // The preview has one entry point. Its settings travel in the query string.
+    // Keep the preview on its single game route.
     if (url.pathname === '/' || url.pathname === '/index.html' ||
         /\.[^/]+$/.test(url.pathname.replace(/\/$/, ''))) return next();
     res.writeHead(302, {Location:'/' + url.search, 'Cache-Control':'no-store'}).end();
@@ -63,5 +63,12 @@ export default defineConfig({
     name: 'local-kart',
     configureServer: serveLocalKart,
     configurePreviewServer: servePreview,
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'assets/kart/mixamo-kart.glb',
+        source: readFileSync(fileURLToPath(new URL('./.local-assets/mixamo-kart.glb', import.meta.url))),
+      });
+    },
   }],
 });

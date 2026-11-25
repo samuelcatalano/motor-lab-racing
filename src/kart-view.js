@@ -150,18 +150,18 @@ function buildWheel(group, side, front, materials) {
 const localHosts = new Set(['localhost', '127.0.0.1', '[::1]']);
 const importedWheelNames = ['FrontLeftWheel', 'FrontRightWheel', 'RearLeftWheel', 'RearRightWheel'];
 
-async function loadLocalKart(loader) {
-  if (!localHosts.has(window.location.hostname)) return null;
-  const asset = '__mixamo-kart.glb';
+async function loadMixamoKart(loader) {
+  const asset = localHosts.has(window.location.hostname)
+    ? '__mixamo-kart.glb' : 'assets/kart/mixamo-kart.glb';
   const url = import.meta.env.BASE_URL + asset;
   loader.manager.itemStart(url);
   try {
     const response = await fetch(url);
-    if (!response.ok || response.headers.get('content-type') !== 'model/gltf-binary') return null;
+    if (!response.ok) return null;
     const { scene } = await loader.parseAsync(await response.arrayBuffer(), '');
     const steering = scene.getObjectByName('ImportedSteering');
     if (scene.getObjectByName('LippiRig')?.userData.assetSource !== 'Adobe Mixamo Racer') {
-      throw new Error('O kart local não contém o piloto Racer');
+      throw new Error('O kart Mixamo não contém o piloto Racer');
     }
     if (!steering?.userData.steeringAxis ||
         !(scene.getObjectByName('DriverArms') || scene.getObjectByName('RigSpine')) ||
@@ -181,9 +181,9 @@ export async function loadKartBody(manager) {
   const loader = new GLTFLoader(manager);
   let scene;
   try {
-    scene = await loadLocalKart(loader);
+    scene = await loadMixamoKart(loader);
   } catch (error) {
-    console.warn('Kart local indisponível', error);
+    console.warn('Kart Mixamo indisponível', error);
   }
   try {
     scene ??= (await loader.loadAsync(
