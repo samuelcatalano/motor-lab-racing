@@ -462,7 +462,7 @@ export function createGaragePreview(renderer, canvas, kartBody, contact, initial
   benchLight.target.position.set(-3.36, 1.4, -3.2);
   scene.add(key, key.target, bounce, rim, benchLight, benchLight.target);
 
-  const group = buildKart(scene, kartBody && clone(kartBody));
+  const group = buildKart(scene, kartBody && clone(kartBody), {presentation:true});
   const parked = {x:0, z:0, angle:Math.PI / 2 + .40, steer:0, spin:0};
   const idle = {lean:0, pitch:0, look:0};
   contact.position.y = .015;

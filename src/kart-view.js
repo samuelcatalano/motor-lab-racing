@@ -261,7 +261,7 @@ function mountModelWheels(body) {
   });
 }
 
-export function buildKart(scene, authoredBody = null) {
+export function buildKart(scene, authoredBody = null, {presentation = false} = {}) {
   const group = new T.Group();
   const body = new T.Group();
   group.add(body);
@@ -299,7 +299,7 @@ export function buildKart(scene, authoredBody = null) {
   }
   const rearWheels = wheels.filter(wheel => !wheel.front)
     .map(({pivot}) => group.worldToLocal(pivot.getWorldPosition(new T.Vector3())));
-  const poseRig = mountDriverRig(authoredBody, group, steering);
+  const poseRig = mountDriverRig(authoredBody, group, steering, {presentation});
   const attitude = {lean:0, pitch:0, look:0, throttle:0, brake:0};
 
   scene.add(group);
