@@ -87,8 +87,8 @@ export function makeCockpit({group, steering}) {
       if (active) panel.draw(Math.round(speed * 3.6), lap);
     },
     frame(eye, target, narrow) {
-      eye.set(center.x, center.y + .469, center.z - .410 - .11 * narrow);
-      target.set(eye.x, eye.y - .62, eye.z + 1);
+      eye.set(center.x, center.y + .489, center.z - .340 - .11 * narrow);
+      target.set(eye.x, eye.y - .74, eye.z + 1);
       group.localToWorld(eye);
       group.localToWorld(target);
     },
