@@ -262,7 +262,7 @@ h1 em {
 @media (min-width: 721px) and (max-height: 760px) {
   [data-pre-grid] .overlay {
     padding-top: max(78px, calc(var(--edge) + 40px));
-    padding-bottom: max(16px, env(safe-area-inset-bottom));
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
   }
   [data-pre-grid] .eyebrow { margin-bottom: clamp(8px, 1.4vh, 14px); }
   [data-pre-grid] .hero-copy { margin: 12px 0 16px; }
@@ -270,6 +270,20 @@ h1 em {
   [data-pre-grid] .loading-status { margin: 10px 0 12px; }
   [data-pre-grid] .conditions { margin-bottom: clamp(12px, 1.8vh, 16px); }
   [data-pre-grid] .record { margin-bottom: 12px; padding-block: 9px; }
+  [data-pre-grid] .primary { min-height: 58px; }
+}
+
+@media (pointer: fine) and (min-width: 600px) and (max-width: 850px) and (orientation: landscape) {
+  [data-pre-grid] .overlay {
+    grid-template-columns: minmax(270px, 1fr) minmax(0, 1.15fr);
+    column-gap: 16px;
+    padding-inline: max(18px, env(safe-area-inset-left)) max(18px, env(safe-area-inset-right));
+  }
+  [data-pre-grid] .circuit-card { padding-inline: 10px; }
+  [data-pre-grid] .conditions { gap: 8px; }
+  [data-pre-grid] .record { gap: 6px; padding-block: 8px; }
+  [data-pre-grid] .record strong { font-size: .72rem; }
+  [data-pre-grid] .primary { min-height: 54px; padding-inline: .8em; font-size: 1rem; }
 }
 
 main[data-loading="true"] #conditions,
@@ -747,11 +761,13 @@ kbd {
   [data-pre-grid][data-loading] .loading-status { margin: 10px 0; }
 }
 
-@media (max-width: 720px) and (orientation: portrait) {
+@media (max-width: 1024px) and (orientation: portrait) {
   [data-pre-grid] .overlay {
     grid-template-columns: minmax(0, 480px);
-    row-gap: 12px;
+    row-gap: 8px;
     align-content: start;
+    padding-top: max(68px, calc(var(--edge) + 32px));
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
   }
   [data-pre-grid] .loading-showcase { grid-row: 1; }
   [data-pre-grid] .loading-showcase img { max-height: 36dvh; }
