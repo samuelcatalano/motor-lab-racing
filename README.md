@@ -63,7 +63,7 @@ O terceiro argumento opcional é o [Rally Driver Character de 3dUVpro](https://s
 blender --background --python-exit-code 1 --python tools/build-kart.py -- /caminho/para/go_kart.glb /caminho/para/racing_helmet_-_sc04tm.glb /caminho/para/rally_driver_character.glb
 ```
 
-Use `?kart=importado` em `localhost` ou `127.0.0.1` para abrir `.local-assets/go-kart-fitted.glb`, tanto no servidor de desenvolvimento quanto no preview. A pasta é ignorada pelo Git e a build estática inclui apenas o modelo autoral.
+Use `?kart=importado` em `localhost` ou `127.0.0.1` para abrir `.local-assets/go-kart-fitted.glb`, tanto no servidor de desenvolvimento quanto no preview. A pasta é ignorada pelo Git e a build estática inclui o GLB Racer usado no jogo e o modelo autoral de fallback.
 
 ## Prévia do piloto Racer
 

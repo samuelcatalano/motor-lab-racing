@@ -26,7 +26,7 @@ A apresentação do veículo em Brand Central, a progressão de preparação no 
 | Geometria, materiais, sinalização da garagem e céu procedural | Criados em código para Motor Lab Racing. |
 | Música, efeitos de interface e ambiente do menu | Síntese original em Web Audio. |
 | Kart, pintura, capacete e piloto autorais | Reutilizados de `go-kart` e `public/assets/kart/kart-body.glb`. O tecido Bi Stretch tem licença CC0. [Inventário](../go-kart/LICENSES.md) |
-| Variante Racer / Go Kart de GRIP420 | Disponível na prévia em loopback. O chassi CC BY-NC-ND 4.0 fica fora do pacote público. O jogo publicado usa o conjunto autoral. [Inventário local](../README.md#kart-enviado-para-teste-local) · [Adobe Mixamo FAQ](https://helpx.adobe.com/creative-cloud/faq/mixamo-faq.html) |
+| Variante Racer / Go Kart de GRIP420 | O mesmo GLB é carregado na prévia local e no GitHub Pages. O chassi Go Kart de GRIP420 tem licença CC BY-NC-ND 4.0. [Inventário local](../README.md#kart-enviado-para-teste-local) · [Adobe Mixamo FAQ](https://helpx.adobe.com/creative-cloud/faq/mixamo-faq.html) |
 | Vista do Vale do Cedro e materiais da pista | Reutilizados do projeto. A vista usa Alps Field, Poly Haven, CC0. [Inventário](../public/assets/vale-do-cedro/SOURCES.md) |
 
 ## Frentes e ferramentas
@@ -58,7 +58,7 @@ Comparação em Chrome no Apple M3 Max, viewport 1920 × 1080, DPR 1, aba em pri
 | Largada disponível | 914 ms | 977 ms |
 | Primeira cena WebGPU da garagem | — | 469 ms |
 
-O build exclui o GLB de 21,1 MB da variante local. A cópia de produção em preview abriu a garagem em 378 ms e habilitou a largada em 968 ms na amostra registrada. A build passou com o aviso de chunk JavaScript acima de 500 kB. `node --test` passou com 23 testes e o console ficou sem erros ou avisos durante o fluxo principal.
+O build inclui o GLB Racer de 21,1 MB em assets/kart/mixamo-kart.glb. A cópia de produção em preview abriu a garagem em 378 ms e habilitou a largada em 968 ms na amostra registrada. A build passou com o aviso de chunk JavaScript acima de 500 kB. `node --test` passou com 23 testes e o console ficou sem erros ou avisos durante o fluxo principal.
 
 ### Revisão criativa
 

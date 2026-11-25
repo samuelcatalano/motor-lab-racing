@@ -151,8 +151,9 @@ const localHosts = new Set(['localhost', '127.0.0.1', '[::1]']);
 const importedWheelNames = ['FrontLeftWheel', 'FrontRightWheel', 'RearLeftWheel', 'RearRightWheel'];
 
 async function loadMixamoKart(loader, onProgress = () => {}) {
-  if (!localHosts.has(window.location.hostname)) return null;
-  const url = import.meta.env.BASE_URL + '__mixamo-kart.glb';
+  const asset = localHosts.has(window.location.hostname)
+    ? '__mixamo-kart.glb' : 'assets/kart/mixamo-kart.glb';
+  const url = import.meta.env.BASE_URL + asset;
   loader.manager.itemStart(url);
   try {
     const response = await fetch(url);
