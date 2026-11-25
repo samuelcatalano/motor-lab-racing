@@ -152,11 +152,7 @@ const importedWheelNames = ['FrontLeftWheel', 'FrontRightWheel', 'RearLeftWheel'
 
 async function loadLocalKart(loader) {
   if (!localHosts.has(window.location.hostname)) return null;
-  const query = new URLSearchParams(window.location.search);
-  const mixamo = query.get('piloto') === 'mixamo' || query.get('kart') !== 'importado';
-  const previousGrip = mixamo && query.get('pegada') === 'anterior';
-  const asset = previousGrip ? '__mixamo-kart-before-restoration.glb'
-    : mixamo ? '__mixamo-kart.glb' : '__local-kart.glb';
+  const asset = '__mixamo-kart.glb';
   const url = import.meta.env.BASE_URL + asset;
   loader.manager.itemStart(url);
   try {
@@ -164,7 +160,7 @@ async function loadLocalKart(loader) {
     if (!response.ok || response.headers.get('content-type') !== 'model/gltf-binary') return null;
     const { scene } = await loader.parseAsync(await response.arrayBuffer(), '');
     const steering = scene.getObjectByName('ImportedSteering');
-    if (mixamo && scene.getObjectByName('LippiRig')?.userData.assetSource !== 'Adobe Mixamo Racer') {
+    if (scene.getObjectByName('LippiRig')?.userData.assetSource !== 'Adobe Mixamo Racer') {
       throw new Error('O kart local não contém o piloto Racer');
     }
     if (!steering?.userData.steeringAxis ||

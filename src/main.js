@@ -6,25 +6,17 @@ import { makeSound } from './sound.js';
 import { times } from './conditions.js';
 
 const get = id => document.getElementById(id);
-const query = new URLSearchParams(location.search);
-const trackId = query.get('pista');
-const definition = tracks.find(track => track.id === trackId) ?? tracks[0];
+if (location.search) history.replaceState(history.state, '', location.pathname + location.hash);
+const definition = tracks[0];
 const track = makeTrack(definition);
 let storage;
 try { storage = window.localStorage; } catch { storage = null; }
 const readChoice = key => { try { return storage?.getItem('mlr.' + key); } catch { return null; } };
 const saveChoice = (key, value) => { try { storage?.setItem('mlr.' + key, value); } catch { /* Storage is optional. */ } };
 const weatherControl = get('weather'), hourControl = get('hour');
-const weatherValues = {chuva:true, rain:true, aberto:false, clear:false};
-const requestedWeather = query.get('clima');
-const weatherFromUrl = Object.hasOwn(weatherValues, requestedWeather)
-  ? weatherValues[requestedWeather] : undefined;
-let wet = weatherFromUrl ?? readChoice('weather') === 'rain';
-const requestedPeriod = query.get('periodo');
-const requestedTime = Object.hasOwn(times, requestedPeriod) ? requestedPeriod : query.get('hora');
+let wet = readChoice('weather') === 'rain';
 const savedTime = readChoice('period');
-let hour = Object.hasOwn(times, requestedTime) ? requestedTime
-  : Object.hasOwn(times, savedTime) ? savedTime : 'day';
+let hour = Object.hasOwn(times, savedTime) ? savedTime : 'day';
 let timer = makeTimer(track, storage, wet);
 const periodNames = {day:'Dia', dusk:'Final da tarde', night:'Noite'};
 let openPicker = null;
@@ -137,11 +129,6 @@ function applyConditions() {
 function rememberConditions() {
   saveChoice('weather', wet ? 'rain' : 'clear');
   saveChoice('period', hour);
-  const url = new URL(location.href);
-  url.searchParams.set('clima', wet ? 'chuva' : 'aberto');
-  url.searchParams.delete('periodo');
-  url.searchParams.set('hora', hour);
-  history.replaceState(history.state, '', url);
 }
 const afterPaint = () => new Promise(resolve =>
   requestAnimationFrame(() => requestAnimationFrame(resolve)));
