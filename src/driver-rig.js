@@ -78,14 +78,13 @@ function wrapRacerFingers(bones, wheel, normal) {
   const thumb = bones.get('HandThumb3'), thumbTip = bones.get('HandThumb4');
   if (thumbRoot && thumbBase && thumb && thumbTip) {
     // Oppose the fingers with the thumb pad against the driver's side of the inner rim.
-    const {radial, depth} = section(wheelPosition(thumbBase).lerp(wheelPosition(thumb), .65));
-    const base = section(wheelPosition(thumbBase));
-    pointJoint(thumbRoot, thumbBase, base.radial.multiplyScalar(rimRadius - .002)
-      .addScaledVector(normal, base.depth + .052));
-    pointJoint(thumbBase, thumb, radial.clone().multiplyScalar(rimRadius - .008)
-      .addScaledVector(normal, depth + .028));
-    pointJoint(thumb, thumbTip, radial.multiplyScalar(rimRadius - .004)
-      .addScaledVector(normal, depth + .013));
+    const {radial, depth} = section(wheelPosition(bones.get('HandMiddle1')));
+    pointJoint(thumbRoot, thumbBase, radial.clone().multiplyScalar(rimRadius - .004)
+      .addScaledVector(normal, depth + .044).addScaledVector(up, .017));
+    pointJoint(thumbBase, thumb, radial.clone().multiplyScalar(rimRadius - .017)
+      .addScaledVector(normal, depth + .026).addScaledVector(up, .029));
+    pointJoint(thumb, thumbTip, radial.multiplyScalar(rimRadius - .016)
+      .addScaledVector(normal, depth + .016).addScaledVector(up, .041));
   }
 }
 
@@ -144,9 +143,9 @@ export function mountDriverRig(body, root, wheel) {
     const fingers = detailedRacer ? racerFingerBones(hand) : null;
     let rimNormal;
     if (detailedRacer) {
-      // Place the palms just above the lateral grips, as on a seated kart wheel.
+      // Opposed palms sit at nine and three, with the thumbs on the inner rim.
       const axis = new Vector3().fromArray(wheel.userData.steeringAxis).normalize();
-      const turn = new Quaternion().setFromAxisAngle(axis, side === 'L' ? -.065 : .065);
+      const turn = new Quaternion().setFromAxisAngle(axis, side === 'L' ? -.08 : .08);
       const middle = fingers.get('HandMiddle1');
       const knuckleOffset = middle &&
         wheel.worldToLocal(middle.getWorldPosition(new Vector3())).sub(grip).applyQuaternion(turn);
@@ -157,7 +156,7 @@ export function mountDriverRig(body, root, wheel) {
         const relax = new Quaternion().setFromAxisAngle(pedalAxis, -.43);
         grip.add(knuckleOffset).sub(knuckleOffset.applyQuaternion(relax));
         gripOrientation.premultiply(relax);
-        const roll = new Quaternion().setFromAxisAngle(knuckleOffset.normalize(), side === 'L' ? .11 : -.11);
+        const roll = new Quaternion().setFromAxisAngle(knuckleOffset.normalize(), side === 'L' ? .48 : -.48);
         gripOrientation.premultiply(roll);
       }
       rimNormal = axis.negate();
