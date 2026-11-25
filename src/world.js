@@ -573,7 +573,7 @@ export async function createWorld(canvas, track, {onProgress = () => {}} = {}) {
   const rendererPromise = createWebGpuRenderer(canvas);
   const assetsPromise = Promise.all([
     loadTrackFinishes(manager),
-    loadKartBody(manager),
+    loadKartBody(manager, onProgress),
   ]).then(assets => {
     if (loadingAssets) onProgress({stage:'renderer'});
     return assets;
@@ -664,6 +664,7 @@ export async function createWorld(canvas, track, {onProgress = () => {}} = {}) {
     rain.update(kart,dt);
   }
   return {
+    setKartVisible(visible) { kartView.group.visible = visible; },
     setConditions(hour,wet){
       wetness.value=Number(wet);
       wetnessNode.value=Number(wet);

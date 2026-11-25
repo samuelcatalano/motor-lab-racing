@@ -150,7 +150,7 @@ function buildWheel(group, side, front, materials) {
 const localHosts = new Set(['localhost', '127.0.0.1', '[::1]']);
 const importedWheelNames = ['FrontLeftWheel', 'FrontRightWheel', 'RearLeftWheel', 'RearRightWheel'];
 
-async function loadMixamoKart(loader) {
+async function loadMixamoKart(loader, onProgress = () => {}) {
   const asset = localHosts.has(window.location.hostname)
     ? '__mixamo-kart.glb' : 'assets/kart/mixamo-kart.glb';
   const url = import.meta.env.BASE_URL + asset;
@@ -158,7 +158,37 @@ async function loadMixamoKart(loader) {
   try {
     const response = await fetch(url);
     if (!response.ok) return null;
-    const { scene } = await loader.parseAsync(await response.arrayBuffer(), '');
+    const total = Number(response.headers.get('content-length')) || 0;
+    const reader = response.body?.getReader();
+    let modelBytes;
+    if (reader) {
+      const chunks = [];
+      let loaded = 0;
+      let lastReport = 0;
+      while (true) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        loaded += value.byteLength;
+        const now = performance.now();
+        if (now - lastReport >= 250) {
+          onProgress({stage:'kart-download', loaded, total});
+          lastReport = now;
+        }
+      }
+      onProgress({stage:'kart-download', loaded, total});
+      modelBytes = new Uint8Array(loaded);
+      let offset = 0;
+      for (const chunk of chunks) {
+        modelBytes.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+    } else {
+      modelBytes = new Uint8Array(await response.arrayBuffer());
+      onProgress({stage:'kart-download', loaded:modelBytes.byteLength, total:total || modelBytes.byteLength});
+    }
+    onProgress({stage:'kart-parse'});
+    const { scene } = await loader.parseAsync(modelBytes.buffer, '');
     const steering = scene.getObjectByName('ImportedSteering');
     if (scene.getObjectByName('LippiRig')?.userData.assetSource !== 'Adobe Mixamo Racer') {
       throw new Error('O kart Mixamo não contém o piloto Racer');
@@ -177,11 +207,11 @@ async function loadMixamoKart(loader) {
   }
 }
 
-export async function loadKartBody(manager) {
+export async function loadKartBody(manager, onProgress = () => {}) {
   const loader = new GLTFLoader(manager);
   let scene;
   try {
-    scene = await loadMixamoKart(loader);
+    scene = await loadMixamoKart(loader, onProgress);
   } catch (error) {
     console.warn('Kart Mixamo indisponível', error);
   }

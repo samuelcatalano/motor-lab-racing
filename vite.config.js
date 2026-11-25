@@ -1,4 +1,4 @@
-import { createReadStream, readFileSync } from 'node:fs';
+import { createReadStream, fstatSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 
@@ -23,8 +23,11 @@ function serveLocalKart(server) {
       return;
     }
     const file = createReadStream(model);
-    file.once('open', () => {
-      res.writeHead(200, { 'Content-Type': 'model/gltf-binary' });
+    file.once('open', descriptor => {
+      res.writeHead(200, {
+        'Content-Type': 'model/gltf-binary',
+        'Content-Length': fstatSync(descriptor).size,
+      });
       file.pipe(res);
     });
     file.once('error', error => {

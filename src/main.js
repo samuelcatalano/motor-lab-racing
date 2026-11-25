@@ -132,18 +132,60 @@ function rememberConditions() {
 }
 const afterPaint = () => new Promise(resolve =>
   requestAnimationFrame(() => requestAnimationFrame(resolve)));
-function showLoading(message, error = false) {
+function updateLoading(message, {error = false, progress = null, detail = ''} = {}) {
   const status = get('loading-status');
+  const track = get('loading-track');
   status.hidden = false;
   status.dataset.error = String(error);
-  setText('loading-status', message);
+  setText('loading-copy', message);
+  setText('loading-value', detail);
+  const determinate = Number.isFinite(progress);
+  track.dataset.indeterminate = String(!determinate);
+  if (determinate) {
+    const value = Math.max(0, Math.min(100, progress));
+    track.setAttribute('aria-valuenow', String(Math.round(value)));
+    track.setAttribute('aria-valuetext', detail || Math.round(value) + '%');
+    get('loading-progress').style.width = value + '%';
+  } else {
+    track.removeAttribute('aria-valuenow');
+    track.removeAttribute('aria-valuetext');
+  }
 }
+function showLoading(message, error = false) {
+  const main = document.querySelector('main');
+  main.dataset.loading = 'true';
+  main.dataset.ready = 'false';
+  get('loading-track').hidden = false;
+  updateLoading(message, {error});
+}
+function showPreGridReady() {
+  const main = document.querySelector('main');
+  main.dataset.loading = 'true';
+  main.dataset.ready = 'true';
+  world?.setKartVisible(false);
+  if (world) world.render(kart, 0, camera, true, format(timer.elapsed(time)));
+  updateLoading('Kart e piloto prontos. Entre na pista quando quiser.', {progress:100, detail:'PRONTO'});
+  get('loading-track').hidden = true;
+}
+function megabytes(bytes) { return (bytes / 1_048_576).toFixed(1); }
 function loadingProgress({stage, loaded, total, progress}, preparing = 'Preparando cena') {
-  if (stage === 'assets') showLoading(`Carregando arquivos: ${loaded} de ${total}`);
-  else if (stage === 'renderer') showLoading('Inicializando WebGPU…');
-  else if (stage === 'scene') showLoading('Montando circuito…');
-  else if (stage === 'pipelines') showLoading(Number.isFinite(progress) && Number.isFinite(total)
-    ? `${preparing} · ${progress} de ${total} pipelines` : preparing + '…');
+  if (stage === 'assets') updateLoading('Carregando arquivos: ' + loaded + ' de ' + total);
+  else if (stage === 'kart-download') {
+    const detail = total > 0 ? Math.round(loaded / total * 100) + '%' : megabytes(loaded) + ' MB';
+    updateLoading(total > 0
+      ? 'Baixando kart e piloto · ' + megabytes(loaded) + ' / ' + megabytes(total) + ' MB'
+      : 'Baixando kart e piloto · ' + megabytes(loaded) + ' MB',
+    {progress:total > 0 ? loaded / total * 100 : null, detail});
+  }
+  else if (stage === 'kart-parse') updateLoading('Montando modelo 3D…');
+  else if (stage === 'renderer') updateLoading('Inicializando WebGPU…');
+  else if (stage === 'scene') updateLoading('Montando circuito…');
+  else if (stage === 'pipelines') updateLoading(Number.isFinite(progress) && Number.isFinite(total)
+    ? preparing + ' · ' + progress + ' de ' + total + ' pipelines' : preparing + '…',
+    {progress:Number.isFinite(progress) && Number.isFinite(total) && total > 0
+      ? progress / total * 100 : null,
+    detail:Number.isFinite(progress) && Number.isFinite(total) && total > 0
+      ? Math.round(progress / total * 100) + '%' : ''});
 }
 function setConditionsBusy(busy) {
   conditionsBusy = busy;
@@ -160,6 +202,8 @@ async function changeConditions(nextHour, nextWet, preparing) {
   const candidateKart = weatherChanged ? spawn(track) : kart;
   const focusedControl = document.activeElement;
   setConditionsBusy(true);
+  world.setKartVisible(false);
+  document.querySelector('main').dataset.loading = 'true';
   showLoading(preparing + '…');
   try {
     await afterPaint();
@@ -178,7 +222,7 @@ async function changeConditions(nextHour, nextWet, preparing) {
     syncPickers();
     rememberConditions();
     await afterPaint();
-    get('loading-status').hidden = true;
+    showPreGridReady();
   } catch (error) {
     ({hour, wet, kart, timer} = previous);
     applyConditions();
@@ -190,6 +234,8 @@ async function changeConditions(nextHour, nextWet, preparing) {
       console.error('Não foi possível redesenhar a condição anterior', restoreError);
     }
     showLoading('Não foi possível preparar a condição. A seleção anterior foi mantida. Tente novamente.', true);
+    document.querySelector('main').dataset.ready = 'true';
+    get('loading-track').hidden = true;
     console.error(error);
   } finally {
     setConditionsBusy(false);
@@ -208,6 +254,12 @@ function mode(next) {
   if (next === 'drive' && conditionsBusy) return;
   state = next;
   const playing = next === 'drive';
+  if (playing) {
+    document.querySelector('main').removeAttribute('data-loading');
+    document.querySelector('main').removeAttribute('data-ready');
+    get('loading-status').hidden = true;
+    world?.setKartVisible(true);
+  }
   down.clear();
   touch.clear();
   accumulator = 0;
@@ -237,9 +289,16 @@ get('sound').addEventListener('click', () => {
   syncSound();
 });
 get('scene').tabIndex = -1;
+function requestLandscapeOnMobile() {
+  if (!matchMedia('(pointer: coarse)').matches) return;
+  const orientation = screen.orientation;
+  if (typeof orientation?.lock !== 'function') return;
+  try { void orientation.lock('landscape').catch(() => {}); } catch { /* Portrait gate remains if locking is unavailable. */ }
+}
 get('start').addEventListener('click', () => {
   if (conditionsBusy) return;
   if (state === 'menu') reset();
+  requestLandscapeOnMobile();
   void sound.activate();
   mode('drive');
 });
@@ -381,12 +440,13 @@ async function startGame() {
     setText('summary', Math.round(track.length) + ' m de circuito · sessão solo');
     setText('menu-best', timer.best ? format(timer.best) : 'Sem volta registrada');
     await afterPaint();
-    get('loading-status').hidden = true;
+    showPreGridReady();
     setConditionsBusy(false);
     window.addEventListener('resize', () => { snap = true; });
     requestAnimationFrame(frame);
   } catch (error) {
     setText('summary', 'Inicialização interrompida');
+    get('reload').hidden = false;
     showLoading(error instanceof WebGPUUnavailableError
       ? error.message
       : 'Não foi possível iniciar a cena 3D. Verifique se o navegador pode usar WebGPU e recarregue o jogo.', true);
