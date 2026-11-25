@@ -151,13 +151,12 @@ const localHosts = new Set(['localhost', '127.0.0.1', '[::1]']);
 const importedWheelNames = ['FrontLeftWheel', 'FrontRightWheel', 'RearLeftWheel', 'RearRightWheel'];
 
 async function loadMixamoKart(loader, onProgress = () => {}) {
-  const asset = localHosts.has(window.location.hostname)
-    ? '__mixamo-kart.glb' : 'assets/kart/mixamo-kart.glb';
-  const url = import.meta.env.BASE_URL + asset;
+  if (!localHosts.has(window.location.hostname)) return null;
+  const url = import.meta.env.BASE_URL + '__mixamo-kart.glb';
   loader.manager.itemStart(url);
   try {
     const response = await fetch(url);
-    if (!response.ok) return null;
+    if (!response.ok || response.status === 204) return null;
     const total = Number(response.headers.get('content-length')) || 0;
     const reader = response.body?.getReader();
     let modelBytes;
@@ -307,7 +306,7 @@ export function buildKart(scene, authoredBody = null) {
     group,
     steering,
     rearWheels,
-    update(kart, dt) {
+    update(kart, dt, idlePose) {
       group.position.set(kart.x, .014, kart.z);
       group.rotation.y = Math.PI / 2 - kart.angle;
       steering.quaternion.setFromAxisAngle(steeringAxis, kart.steer * .54);
@@ -316,7 +315,8 @@ export function buildKart(scene, authoredBody = null) {
         weights[indices.SteerPositive] = Math.max(0, kart.steer);
       }
       if (poseRig || (torso && helmet)) {
-        const {lean, pitch, look} = driverAttitude(kart.speed ?? 0, kart.steer, kart.brake ?? 0);
+        const {lean, pitch, look} = idlePose ??
+          driverAttitude(kart.speed ?? 0, kart.steer, kart.brake ?? 0);
         const follow = dt === 0 ? 1 : 1 - Math.exp(-Math.max(0, dt ?? 0) * 8);
         attitude.lean = T.MathUtils.lerp(attitude.lean, lean, follow);
         attitude.pitch = T.MathUtils.lerp(attitude.pitch, pitch, follow);

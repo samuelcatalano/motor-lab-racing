@@ -11,16 +11,28 @@
     }
   </script>
   <link rel="stylesheet" href="/src/style.css">
+  <link rel="stylesheet" href="/src/menu.css">
   <title>Motor Lab Racing · Contra o relógio</title>
 </head>
 <body>
   <main data-pre-grid data-loading="true">
     <canvas id="scene" aria-label="Circuito 3D"></canvas>
+    <canvas id="garage" aria-hidden="true"></canvas>
 
     <header class="topbar">
       <div class="brand"><i aria-hidden="true"></i> MOTOR LAB <b>RACING</b><span id="renderer-status" class="renderer-badge" role="status" aria-live="polite" hidden><i aria-hidden="true"></i> WebGPU ativo</span></div>
       <div class="top-actions">
         <button id="sound" type="button" aria-pressed="false">Som</button>
+        <details id="audio-settings" class="audio-settings">
+          <summary aria-label="Configurações de áudio">Áudio <span aria-hidden="true">⌄</span></summary>
+          <div class="audio-panel">
+            <p class="audio-heading">Mixagem de áudio</p>
+            <label for="volume-master">Geral <input id="volume-master" type="range" min="0" max="1" step="0.01" value="1"></label>
+            <label for="volume-music">Música <input id="volume-music" type="range" min="0" max="1" step="0.01" value="1"></label>
+            <label for="volume-sfx">Efeitos <input id="volume-sfx" type="range" min="0" max="1" step="0.01" value="1"></label>
+            <label for="volume-ambient">Ambiente <input id="volume-ambient" type="range" min="0" max="1" step="0.01" value="1"></label>
+          </div>
+        </details>
         <button id="camera" type="button" aria-label="Câmera atual: Traseira próxima. Alternar câmera" hidden>Câmera</button>
         <button id="pause" type="button" hidden>Pausar</button>
       </div>
@@ -44,13 +56,18 @@
 
     <section id="menu" class="overlay" aria-labelledby="title">
       <div class="panel">
-        <p class="eyebrow" id="mode"><span class="race-number" aria-hidden="true">01</span> Contra o relógio</p>
+        <p class="eyebrow" id="mode">Contra o relógio</p>
         <h1 id="title" aria-label="Motor Lab Racing" translate="no"><span>MOTOR LAB</span><em>RACING</em></h1>
-        <p class="hero-copy">Seu kart. Seu traçado. Cada décimo conta.</p>
         <div class="circuit-card">
-          <span class="label">Circuito selecionado</span>
-          <strong id="circuit-name">Vale do Cedro</strong>
-          <span id="summary">Carregando circuito…</span>
+          <div class="circuit-copy">
+            <span class="label">Circuito selecionado</span>
+            <strong id="circuit-name">Vale do Cedro</strong>
+            <span id="summary">Carregando circuito…</span>
+          </div>
+          <svg class="menu-map" viewBox="0 0 256 151" role="img" aria-label="Traçado do circuito Vale do Cedro">
+            <path id="menu-route" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"></path>
+            <circle id="menu-finish" r="5" fill="currentColor"></circle>
+          </svg>
         </div>
         <div id="loading-status" class="loading-status" role="status" aria-live="polite" aria-atomic="false">
           <div class="loading-flow">
@@ -104,12 +121,6 @@
             <div><dt><kbd>Esc</kbd></dt><dd>Pausar</dd></div>
           </dl>
         </details>
-      </div>
-      <div class="loading-showcase" aria-hidden="true">
-        <span class="showcase-beam"></span>
-        <span class="showcase-reflection"></span>
-        <span class="showcase-grid"></span>
-        <img src="./assets/loading-pit.webp" width="1600" height="960" alt="" fetchpriority="high">
       </div>
     </section>
 

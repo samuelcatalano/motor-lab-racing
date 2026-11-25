@@ -1,4 +1,11 @@
-import {WebGPURenderer} from 'three/webgpu';
+import {Renderer, StandardNodeLibrary, WebGPUBackend} from 'three/webgpu';
+
+function createRenderer(canvas, options) {
+  const parameters = {canvas, ...options};
+  const renderer = new Renderer(new WebGPUBackend(parameters), parameters);
+  renderer.library = new StandardNodeLibrary();
+  return renderer;
+}
 
 export class WebGPUUnavailableError extends Error {
   constructor(cause) {
@@ -9,7 +16,7 @@ export class WebGPUUnavailableError extends Error {
 
 export async function createWebGpuRenderer(canvas, {
   gpu = globalThis.navigator?.gpu,
-  rendererFactory = (target, options) => new WebGPURenderer({canvas: target, ...options}),
+  rendererFactory = createRenderer,
 } = {}) {
   if (!gpu || typeof gpu.requestAdapter !== 'function') {
     throw new WebGPUUnavailableError();

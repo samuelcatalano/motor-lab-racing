@@ -1,4 +1,4 @@
-import { tracks, makeTrack, makeTimer } from './track.js';
+import { tracks, makeTrack, makeTrackMap, makeTimer } from './track.js';
 import { drive, spawn } from './drive.js';
 import { createWorld } from './world.js';
 import { WebGPUUnavailableError } from './webgpu-renderer.js';
@@ -11,6 +11,7 @@ const definition = tracks[0];
 const track = makeTrack(definition);
 let storage;
 try { storage = window.localStorage; } catch { storage = null; }
+const sound = makeSound({storage});
 const readChoice = key => { try { return storage?.getItem('mlr.' + key); } catch { return null; } };
 const saveChoice = (key, value) => { try { storage?.setItem('mlr.' + key, value); } catch { /* Storage is optional. */ } };
 const weatherControl = get('weather'), hourControl = get('hour');
@@ -37,6 +38,7 @@ function completeLoadingSteps() {
 function syncPreGridConditions(nextWet = wet, nextHour = hour) {
   preGridRoot.dataset.weather = nextWet ? 'rain' : 'clear';
   preGridRoot.dataset.period = nextHour;
+  sound.setWeather(nextWet);
 }
 syncPreGridConditions();
 let openPicker = null;
@@ -113,14 +115,37 @@ function syncPickers() {
   hourPicker.set(hour);
 }
 syncPickers();
-const sound = makeSound();
 let kart = spawn(track), camera = 0, time = 0, accumulator = 0;
 let state = 'menu', previous = 0, snap = true;
 const down = new Set();
 const touch = new Map();
 const step = 1 / 120;
 const hud = document.querySelector('.hud');
-let world;
+let world, garage;
+
+function showGarage(preview) {
+  garage = preview;
+  preGridRoot.dataset.garageReady = 'true';
+  function animate(now) {
+    if (garage !== preview) return;
+    try {
+      preview.render(now);
+    } catch (error) {
+      closeGarage();
+      console.warn('A prévia da garagem foi interrompida', error);
+      return;
+    }
+    requestAnimationFrame(animate);
+  }
+  requestAnimationFrame(animate);
+}
+
+function closeGarage() {
+  const preview = garage;
+  garage = null;
+  preGridRoot.removeAttribute('data-garage-ready');
+  preview?.dispose();
+}
 
 const format = value => {
   if (value === null || value === 0) return '—';
@@ -142,6 +167,7 @@ function reset(nextKart = spawn(track)) {
 }
 function applyConditions() {
   world?.setConditions(hour, wet);
+  garage?.setConditions(hour, wet);
   syncPreGridConditions();
   setText('conditions-hud', periodNames[hour] + ' · ' + (wet ? 'Chuva' : 'Céu aberto'));
   setText('menu-best', timer.best ? format(timer.best) : 'Sem volta registrada');
@@ -245,13 +271,18 @@ function setConditionsBusy(busy) {
 async function changeConditions(nextHour, nextWet, preparing) {
   syncPickers();
   if (!world || conditionsBusy || (nextHour === hour && nextWet === wet)) return;
+  sound.playUiCue('select');
   const previous = {hour, wet, kart, timer};
   const weatherChanged = nextWet !== wet;
   const candidateKart = weatherChanged ? spawn(track) : kart;
   const focusedControl = document.activeElement;
   setConditionsBusy(true);
+  preGridRoot.toggleAttribute('data-refreshing', true);
   showLoading(preparing + '…');
+  weatherPicker.set(nextWet ? 'rain' : 'clear');
+  hourPicker.set(nextHour);
   syncPreGridConditions(nextWet, nextHour);
+  garage?.setConditions(nextHour, nextWet);
   try {
     await afterPaint();
     await world.prepareConditions(nextHour, nextWet, progress => loadingProgress(progress, preparing), {
@@ -268,6 +299,7 @@ async function changeConditions(nextHour, nextWet, preparing) {
     snap = false;
     syncPickers();
     rememberConditions();
+    sound.playUiCue('confirm');
     await afterPaint();
     showMenuReady();
   } catch (error) {
@@ -286,6 +318,7 @@ async function changeConditions(nextHour, nextWet, preparing) {
     get('loading-track').hidden = true;
     console.error(error);
   } finally {
+    preGridRoot.removeAttribute('data-refreshing');
     setConditionsBusy(false);
     if ((focusedControl === weatherControl || focusedControl === hourControl) &&
         document.activeElement === document.body) focusedControl.focus({preventScroll:true});
@@ -301,11 +334,13 @@ hourControl.addEventListener('change', () => {
 function mode(next) {
   if (next === 'drive' && conditionsBusy) return;
   state = next;
+  sound.setMode(next);
   const playing = next === 'drive';
   if (playing) {
     const main = document.querySelector('main');
     if (main.hasAttribute('data-pre-grid')) {
       world.render(kart, 0, camera, true);
+      closeGarage();
       main.removeAttribute('data-pre-grid');
     }
     main.removeAttribute('data-loading');
@@ -322,6 +357,7 @@ function mode(next) {
   get('touch').hidden = !playing;
   get('restart').hidden = next !== 'pause';
   if (next === 'pause') {
+    sound.playUiCue('pause');
     setText('mode', 'Pausado');
     get('start').querySelector('.primary-label').textContent = 'Voltar à pista';
     setText('menu-best', timer.best ? format(timer.best) : 'Sem volta registrada');
@@ -335,10 +371,25 @@ function syncSound() {
   get('sound').setAttribute('aria-pressed', String(sound.enabled));
 }
 syncSound();
+const audioSettings = get('audio-settings');
+for (const channel of ['master', 'music', 'sfx', 'ambient']) {
+  const slider = get('volume-' + channel);
+  slider.value = sound.settings[channel];
+  slider.addEventListener('input', () => sound.configure({[channel]:slider.valueAsNumber}));
+}
 get('sound').addEventListener('click', () => {
   sound.toggle();
-  if (sound.enabled && state === 'drive') void sound.activate();
+  if (sound.enabled) {
+    void sound.activate();
+    sound.playUiCue('toggle');
+  }
   syncSound();
+});
+audioSettings.addEventListener('toggle', () => {
+  if (audioSettings.open) sound.playUiCue('toggle');
+});
+document.addEventListener('pointerdown', event => {
+  if (audioSettings.open && !audioSettings.contains(event.target)) audioSettings.open = false;
 });
 get('scene').tabIndex = -1;
 function requestLandscapeOnMobile() {
@@ -347,11 +398,22 @@ function requestLandscapeOnMobile() {
   if (typeof orientation?.lock !== 'function') return;
   try { void orientation.lock('landscape').catch(() => {}); } catch { /* Portrait gate remains if locking is unavailable. */ }
 }
-get('start').addEventListener('click', () => {
+get('start').addEventListener('click', async () => {
   if (conditionsBusy) return;
-  if (state === 'menu') reset();
   requestLandscapeOnMobile();
   void sound.activate();
+  sound.playUiCue('start');
+  if (state === 'menu') {
+    reset();
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setConditionsBusy(true);
+      preGridRoot.setAttribute('data-entering', '');
+      await new Promise(resolve => setTimeout(resolve, 175));
+      setConditionsBusy(false);
+      setTimeout(() => preGridRoot.removeAttribute('data-entering'), 225);
+      if (document.hidden || !document.hasFocus()) return;
+    }
+  }
   mode('drive');
 });
 get('pause').addEventListener('click', () => mode('pause'));
@@ -373,6 +435,13 @@ get('restart').addEventListener('click', () => {
 const drivingKeys = new Set(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight']);
 window.addEventListener('keydown', e => {
   if (e.altKey || e.metaKey || e.ctrlKey) return;
+  if (audioSettings.open && e.code === 'Escape') {
+    e.preventDefault();
+    audioSettings.open = false;
+    audioSettings.querySelector('summary').focus();
+    return;
+  }
+  if (e.code !== 'Escape' && audioSettings.contains(e.target)) return;
   if (state === 'drive' && drivingKeys.has(e.code)) {
     e.preventDefault();
     down.add(e.code);
@@ -413,17 +482,12 @@ function readInput() {
 
 const map = get('map');
 const ctx = map.getContext('2d');
-const xs = track.samples.map(p => p.x), zs = track.samples.map(p => p.z);
-const minX = Math.min(...xs), maxX = Math.max(...xs), minZ = Math.min(...zs), maxZ = Math.max(...zs);
-const scale = Math.min(224 / (maxX - minX), 117 / (maxZ - minZ));
-const mapX = x => 128 + (x - (minX + maxX) / 2) * scale;
-const mapY = z => 75.5 + (z - (minZ + maxZ) / 2) * scale;
-const route = new Path2D();
-track.samples.forEach((p, i) => {
-  if (i === 0) route.moveTo(mapX(p.x), mapY(p.z));
-  else route.lineTo(mapX(p.x), mapY(p.z));
-});
-route.closePath();
+const trackMap = makeTrackMap(track);
+const route = new Path2D(trackMap.path);
+const finish = trackMap.project(track.checkpoints[0].point);
+get('menu-route').setAttribute('d', trackMap.path);
+get('menu-finish').setAttribute('cx', finish.x);
+get('menu-finish').setAttribute('cy', finish.y);
 function dashboard() {
   const elapsed = timer.elapsed(time);
   const lapTime = format(elapsed);
@@ -442,12 +506,12 @@ function dashboard() {
   ctx.lineWidth = 4;
   ctx.strokeStyle = '#f4f0d6';
   ctx.stroke(route);
-  const {point} = track.checkpoints[0];
   ctx.fillStyle = '#fff';
-  ctx.fillRect(mapX(point.x) - 4, mapY(point.z) - 4, 8, 8);
+  ctx.fillRect(finish.x - 4, finish.y - 4, 8, 8);
   ctx.fillStyle = '#ffcf61';
   ctx.beginPath();
-  ctx.arc(mapX(kart.x), mapY(kart.z), 6, 0, Math.PI * 2);
+  const position = trackMap.project(kart);
+  ctx.arc(position.x, position.y, 6, 0, Math.PI * 2);
   ctx.fill();
   return lapTime;
 }
@@ -478,13 +542,23 @@ function frame(now) {
 }
 
 async function startGame() {
+  let initializing = true;
+  const startupProgress = progress => {
+    if (initializing) loadingProgress(progress);
+  };
   try {
     setConditionsBusy(true);
-    world = await createWorld(get('scene'), track, {onProgress:loadingProgress});
+    world = await createWorld(get('scene'), track, {
+      onProgress:startupProgress,
+      garageCanvas:get('garage'),
+      initialHour:hour,
+      initialWet:wet,
+      onGarageReady:showGarage,
+    });
     get('renderer-status').hidden = false;
     showLoading('Preparando cena…');
     await afterPaint();
-    await world.prepareConditions(hour, wet, loadingProgress);
+    await world.prepareConditions(hour, wet, startupProgress);
     applyConditions();
     world.render(kart, 0, camera, true);
     snap = false;
@@ -492,16 +566,20 @@ async function startGame() {
     setText('summary', Math.round(track.length) + ' m de circuito · sessão solo');
     setText('menu-best', timer.best ? format(timer.best) : 'Sem volta registrada');
     await afterPaint();
+    initializing = false;
     showMenuReady();
     setConditionsBusy(false);
     window.addEventListener('resize', () => { snap = true; });
     requestAnimationFrame(frame);
   } catch (error) {
+    initializing = false;
+    closeGarage();
     setText('summary', 'Inicialização interrompida');
     get('reload').hidden = false;
     showLoading(error instanceof WebGPUUnavailableError
       ? error.message
       : 'Não foi possível iniciar a cena 3D. Verifique se o navegador pode usar WebGPU e recarregue o jogo.', true);
+    get('loading-track').hidden = true;
     setLoadingStep(activeLoadingStep, 'error');
     console.error(error);
   }

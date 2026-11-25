@@ -1,4 +1,4 @@
-import { createReadStream, fstatSync, readFileSync } from 'node:fs';
+import { createReadStream, fstatSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 
@@ -66,12 +66,5 @@ export default defineConfig({
     name: 'local-kart',
     configureServer: serveLocalKart,
     configurePreviewServer: servePreview,
-    generateBundle() {
-      this.emitFile({
-        type: 'asset',
-        fileName: 'assets/kart/mixamo-kart.glb',
-        source: readFileSync(fileURLToPath(new URL('./.local-assets/mixamo-kart.glb', import.meta.url))),
-      });
-    },
   }],
 });

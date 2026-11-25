@@ -47,6 +47,23 @@ export function makeTrack(definition) {
     checkpoints: definition.gates.map(progress => at(progress))};
 }
 
+export function makeTrackMap(track) {
+  const xs = track.samples.map(point => point.x);
+  const zs = track.samples.map(point => point.z);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minZ = Math.min(...zs), maxZ = Math.max(...zs);
+  const scale = Math.min(224 / (maxX - minX), 117 / (maxZ - minZ));
+  const project = ({x, z}) => ({
+    x: 128 + (x - (minX + maxX) / 2) * scale,
+    y: 75.5 + (z - (minZ + maxZ) / 2) * scale,
+  });
+  const coordinates = track.samples.map(point => {
+    const {x, y} = project(point);
+    return x.toFixed(2) + ' ' + y.toFixed(2);
+  });
+  return {project, path: 'M' + coordinates.join(' L') + ' Z'};
+}
+
 export function makeTimer(track, storage, wet = false) {
   const key = 'motor-lab:best:' + track.id + (wet ? ':wet' : '');
   let best;

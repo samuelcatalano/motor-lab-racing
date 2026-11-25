@@ -11,6 +11,7 @@ import { addTireTrail } from './tire-trail.js';
 import { addTracksideDetails } from './trackside-view.js';
 import { activeFloodlightCount, addTrackLighting } from './track-lighting.js';
 import { addRain, addWaterBeading } from './weather-effects.js';
+import { createGaragePreview } from './garage-view.js';
 import { createWebGpuRenderer } from './webgpu-renderer.js';
 import {
   abs, attribute, cameraPosition, clamp, dFdx, dFdy, dot, exp, float, floor, fract, fwidth,
@@ -562,7 +563,10 @@ function makeContactShadow() {
   return mesh;
 }
 
-export async function createWorld(canvas, track, {onProgress = () => {}} = {}) {
+export async function createWorld(canvas, track, {
+  onProgress = () => {}, garageCanvas, onGarageReady = () => {},
+  initialHour = 'day', initialWet = false,
+} = {}) {
   const manager = new T.LoadingManager();
   let loadingAssets = true;
   const assetProgress = (_url, loaded, total) => {
@@ -578,20 +582,38 @@ export async function createWorld(canvas, track, {onProgress = () => {}} = {}) {
     onProgress({stage:'models-ready'});
     return kartBody;
   });
-  const assetsPromise = Promise.all([
-    loadTrackFinishes(manager),
-    kartBodyPromise,
-  ]);
-  const [[{road, sky: panorama, forest, grass, roadDetail}, kartBody], renderer] =
-    await Promise.all([assetsPromise, rendererPromise]).finally(() => { loadingAssets = false; });
+  const sceneAssets = Promise.all([loadTrackFinishes(manager), kartBodyPromise, rendererPromise]);
+  let garage;
+  try {
+    const garageReady = Promise.all([rendererPromise, kartBodyPromise]).then(([renderer, kartBody]) => {
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = T.PCFShadowMap;
+      renderer.toneMapping = T.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.06;
+      if (!garageCanvas || !loadingAssets) return;
+      try {
+        garage = createGaragePreview(renderer, garageCanvas, kartBody, makeContactShadow(), initialHour, initialWet);
+        garage.render(performance.now());
+        onGarageReady(garage);
+      } catch (error) {
+        garage?.dispose();
+        garage = undefined;
+        console.warn('Não foi possível exibir a garagem', error);
+      }
+    });
+    await Promise.all([sceneAssets, garageReady]);
+  } catch (error) {
+    garage?.dispose();
+    throw error;
+  } finally {
+    loadingAssets = false;
+  }
+  const [{road, sky: panorama, forest, grass, roadDetail}, kartBody, renderer] = await sceneAssets;
+  garage?.setPanorama(panorama?.photo);
   onProgress({stage:'scene'});
   // Give the scene stage a paint before synchronous geometry construction.
   await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = T.PCFShadowMap;
-  renderer.toneMapping = T.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.06;
   const scene = new T.Scene();
   const lighting=addTrackLighting(scene,renderer,track,panorama);
   const wetness={value:0}, rainClock={value:0};

@@ -24,7 +24,7 @@ from fit_mixamo import aim_hand, append_glove_cuffs, rename_channels
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / ".local-assets" / "mixamo-kart.glb"
 PREVIEW_GLB = ROOT / ".local-assets" / "motor-lab-loading-preview.glb"
-PREVIEW_WEBP = ROOT / "public" / "assets" / "loading-pit.webp"
+PREVIEW_WEBP = ROOT / ".local-assets" / "motor-lab-loading-preview.webp"
 RENDER_SIZE = (1600, 960)
 
 

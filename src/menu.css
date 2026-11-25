@@ -1,0 +1,192 @@
+/* The garage menu is layered over the live scene; race HUD styling remains in style.css. */
+:root {
+  --accent: #e9c75c;
+  --text: #f2eee0;
+  --muted: #b7bdb3;
+}
+
+#garage {
+  display: none;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+main[data-pre-grid] #garage { display: block; visibility: hidden; }
+main[data-pre-grid][data-garage-ready="true"] #garage { visibility: visible; }
+
+[data-pre-grid] .topbar {
+  align-items: center;
+  padding: clamp(24px, 3.2vw, 58px) clamp(36px, 4.3vw, 82px);
+}
+[data-pre-grid] .brand {
+  color: #f1eddf;
+  font-size: .75rem;
+  letter-spacing: .16em;
+}
+[data-pre-grid] .brand > i {
+  width: 22px;
+  height: 14px;
+  background: repeating-linear-gradient(90deg, var(--accent) 0 4px, transparent 4px 7px);
+}
+[data-pre-grid] .brand b { color: inherit; }
+.top-actions { align-items: flex-start; pointer-events: auto; }
+.top-actions > button, .audio-settings > summary {
+  min-height: 40px;
+  padding: 11px 14px;
+  border: 1px solid #e9eee632;
+  background: #0e1715cf;
+  color: #e4e8dd;
+  font: 700 .68rem/1.1 var(--digits);
+  letter-spacing: .06em;
+}
+.audio-settings { position: relative; pointer-events: auto; }
+.audio-settings > summary { cursor: pointer; list-style: none; }
+.audio-settings > summary::-webkit-details-marker { display: none; }
+.audio-settings > summary span { margin-left: .5em; color: var(--accent); }
+.audio-settings > summary:hover, .audio-settings[open] > summary { border-color: var(--accent); }
+.audio-settings > summary:focus-visible, .audio-panel input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.audio-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 250px;
+  padding: 18px;
+  border: 1px solid #dbe5d23b;
+  background: #111b18f5;
+  box-shadow: 0 12px 32px #0007;
+}
+.audio-heading { margin: 0 0 16px; color: var(--accent); font: 700 .65rem/1 var(--digits); letter-spacing: .1em; text-transform: uppercase; }
+.audio-panel label { display: grid; grid-template-columns: 68px 1fr; align-items: center; gap: 12px; margin-top: 12px; font-size: .75rem; }
+.audio-panel input { width: 100%; accent-color: var(--accent); cursor: pointer; }
+
+[data-pre-grid] #menu {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-content: stretch;
+  align-content: center;
+  align-items: center;
+  padding: 104px clamp(36px, 6.2vw, 120px) 42px;
+  background: transparent;
+}
+[data-pre-grid] #menu::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(90deg, #0b1412f7 0%, #0b1412ed 19%, #0b1412c9 32%, #0b141273 46%, #0b141214 72%),
+    linear-gradient(0deg, #08110fb3 0%, transparent 25%, transparent 74%, #08110f70 100%);
+}
+[data-pre-grid] .panel {
+  z-index: 2;
+  width: min(100%, 500px);
+}
+[data-pre-grid] .panel::before { display: none; }
+[data-pre-grid] .eyebrow {
+  gap: 11px;
+  margin: 0 0 clamp(15px, 2.4vh, 26px);
+  color: #d5c67e;
+  font-size: .65rem;
+  letter-spacing: .15em;
+}
+[data-pre-grid] h1 {
+  font-size: clamp(4rem, min(5.1vw, 9vh), 6.3rem);
+  line-height: .86;
+  letter-spacing: -.055em;
+  text-shadow: 0 4px 30px #0008;
+  margin-bottom: clamp(26px, 4vh, 46px);
+}
+[data-pre-grid] h1 em { margin-left: 0; color: var(--text); }
+[data-pre-grid] h1 em::after { content: "."; color: var(--accent); }
+[data-pre-grid] .circuit-card,
+main[data-pre-grid][data-loading="true"] .circuit-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  width: 100%;
+  min-height: 102px;
+  margin: 0 0 21px;
+  padding: 14px 0;
+  border: 0;
+  border-block: 1px solid #e0e7d83b;
+  background: none;
+}
+.circuit-copy { display: grid; gap: 5px; min-width: 0; }
+[data-pre-grid] .circuit-card strong { font-size: 1.5rem; letter-spacing: .015em; }
+[data-pre-grid] #summary { max-width: 30ch; font-size: .72rem; }
+.menu-map { flex: 0 0 140px; width: 140px; height: 82px; overflow: visible; color: #e9c75c; }
+[data-pre-grid] .loading-status,
+main[data-pre-grid][data-loading="true"] .loading-status { width: 100%; margin: 0 0 18px; }
+main[data-pre-grid][data-ready="true"] .loading-status:not([data-error="true"]) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+main[data-pre-grid][data-refreshing] #conditions { display: grid; }
+main[data-pre-grid][data-refreshing] .record { display: flex; }
+main[data-pre-grid][data-refreshing] #start { display: inline-flex; }
+main[data-pre-grid][data-refreshing] .controls-help { display: block; }
+main[data-pre-grid][data-refreshing] .loading-status {
+  position: absolute;
+  bottom: calc(100% + 14px);
+  margin: 0;
+}
+main[data-pre-grid][data-refreshing] .loading-flow { display: block; }
+main[data-pre-grid][data-refreshing] .start-light-tower { display: none; }
+[data-pre-grid] .loading-flow { grid-template-columns: 128px 1fr; }
+[data-pre-grid] .start-light-tower { border-color: #e1e8dd26; border-radius: 0; box-shadow: none; background: #0a1512bd; }
+[data-pre-grid] .conditions { width: 100%; gap: 14px; margin-bottom: 12px; }
+[data-pre-grid] .label { color: #adb7ab; font-size: .59rem; letter-spacing: .14em; }
+[data-pre-grid] .picker-trigger { min-height: 47px; background: #111c19db; border-color: #d6dfcf46; font-size: .82rem; }
+[data-pre-grid] .record { width: 100%; margin: 0 0 17px; padding: 11px 0; border-top: 0; }
+[data-pre-grid] .record strong { color: #e9e8d9; font-size: .77rem; }
+[data-pre-grid] .primary { width: 100%; min-height: 60px; font-size: 1.2rem; background: var(--accent); }
+[data-pre-grid] .primary:hover:not(:disabled) { background: #f5dc7b; }
+[data-pre-grid] .primary-arrow { transition: transform .2s ease; }
+[data-pre-grid] .primary:hover:not(:disabled) .primary-arrow { transform: translate(3px, -3px); }
+[data-pre-grid] .controls-help { width: 100%; margin-top: 11px; }
+
+@media (max-height: 850px) {
+  [data-pre-grid] #menu { align-content: start; padding-top: 98px; }
+  [data-pre-grid] h1 { font-size: clamp(3.4rem, 8vh, 5rem); }
+  [data-pre-grid] .circuit-card, main[data-pre-grid][data-loading="true"] .circuit-card { min-height: 80px; margin-bottom: 12px; padding-block: 8px; }
+  [data-pre-grid] .menu-map { height: 62px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-pre-grid] .primary-arrow { transition: none; }
+}
+
+/* A brief shutter bridges the garage and the live track. */
+main[data-entering]::after {
+  content: "";
+  position: absolute;
+  z-index: 9;
+  inset: 0;
+  background: #07100e;
+  pointer-events: none;
+  animation: enter-track 380ms ease-in-out both;
+}
+@keyframes enter-track {
+  0%, 100% { opacity: 0; }
+  45%, 55% { opacity: .96; }
+}
+@media (prefers-reduced-motion: reduce) {
+  main[data-entering]::after { display: none; }
+}
+
+/* The ready state keeps the driving key reference available before entering. */
+main[data-pre-grid][data-loading="true"][data-ready="true"] .controls-help { display: block; }
+@media (min-width: 3000px) {
+  [data-pre-grid] .panel { zoom: 1.2; }
+}
+@media (min-width: 3800px) {
+  [data-pre-grid] .panel { zoom: 1.4; }
+}
