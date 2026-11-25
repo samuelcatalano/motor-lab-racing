@@ -158,13 +158,17 @@ function showLoading(message, error = false) {
   get('loading-track').hidden = false;
   updateLoading(message, {error});
 }
-function showPreGridReady() {
+function showMenuReady() {
   const main = document.querySelector('main');
+  if (state !== 'menu') {
+    main.removeAttribute('data-loading');
+    main.removeAttribute('data-ready');
+    get('loading-status').hidden = true;
+    return;
+  }
   main.dataset.loading = 'true';
   main.dataset.ready = 'true';
-  world?.setKartVisible(false);
-  if (world) world.render(kart, 0, camera, true, format(timer.elapsed(time)));
-  updateLoading('Kart e piloto prontos. Entre na pista quando quiser.', {progress:100, detail:'PRONTO'});
+  updateLoading('Kart e piloto prontos', {progress:100});
   get('loading-track').hidden = true;
 }
 function megabytes(bytes) { return (bytes / 1_048_576).toFixed(1); }
@@ -202,8 +206,6 @@ async function changeConditions(nextHour, nextWet, preparing) {
   const candidateKart = weatherChanged ? spawn(track) : kart;
   const focusedControl = document.activeElement;
   setConditionsBusy(true);
-  world.setKartVisible(false);
-  document.querySelector('main').dataset.loading = 'true';
   showLoading(preparing + '…');
   try {
     await afterPaint();
@@ -222,7 +224,7 @@ async function changeConditions(nextHour, nextWet, preparing) {
     syncPickers();
     rememberConditions();
     await afterPaint();
-    showPreGridReady();
+    showMenuReady();
   } catch (error) {
     ({hour, wet, kart, timer} = previous);
     applyConditions();
@@ -255,10 +257,14 @@ function mode(next) {
   state = next;
   const playing = next === 'drive';
   if (playing) {
-    document.querySelector('main').removeAttribute('data-loading');
-    document.querySelector('main').removeAttribute('data-ready');
+    const main = document.querySelector('main');
+    if (main.hasAttribute('data-pre-grid')) {
+      world.render(kart, 0, camera, true);
+      main.removeAttribute('data-pre-grid');
+    }
+    main.removeAttribute('data-loading');
+    main.removeAttribute('data-ready');
     get('loading-status').hidden = true;
-    world?.setKartVisible(true);
   }
   down.clear();
   touch.clear();
@@ -440,7 +446,7 @@ async function startGame() {
     setText('summary', Math.round(track.length) + ' m de circuito · sessão solo');
     setText('menu-best', timer.best ? format(timer.best) : 'Sem volta registrada');
     await afterPaint();
-    showPreGridReady();
+    showMenuReady();
     setConditionsBusy(false);
     window.addEventListener('resize', () => { snap = true; });
     requestAnimationFrame(frame);
