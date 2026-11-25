@@ -570,14 +570,18 @@ export async function createWorld(canvas, track, {onProgress = () => {}} = {}) {
   };
   manager.onStart = manager.onProgress = assetProgress;
   onProgress({stage:'renderer'});
-  const rendererPromise = createWebGpuRenderer(canvas);
+  const rendererPromise = createWebGpuRenderer(canvas).then(renderer => {
+    onProgress({stage:'webgpu-ready'});
+    return renderer;
+  });
+  const kartBodyPromise = loadKartBody(manager, onProgress).then(kartBody => {
+    onProgress({stage:'models-ready'});
+    return kartBody;
+  });
   const assetsPromise = Promise.all([
     loadTrackFinishes(manager),
-    loadKartBody(manager, onProgress),
-  ]).then(assets => {
-    if (loadingAssets) onProgress({stage:'renderer'});
-    return assets;
-  });
+    kartBodyPromise,
+  ]);
   const [[{road, sky: panorama, forest, grass, roadDetail}, kartBody], renderer] =
     await Promise.all([assetsPromise, rendererPromise]).finally(() => { loadingAssets = false; });
   onProgress({stage:'scene'});

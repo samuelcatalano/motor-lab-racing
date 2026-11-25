@@ -19,6 +19,26 @@ const savedTime = readChoice('period');
 let hour = Object.hasOwn(times, savedTime) ? savedTime : 'day';
 let timer = makeTimer(track, storage, wet);
 const periodNames = {day:'Dia', dusk:'Final da tarde', night:'Noite'};
+const preGridRoot = document.querySelector('main');
+const loadingStepNames = {webgpu:'WebGPU', models:'kart e piloto', track:'pista'};
+let activeLoadingStep = 'webgpu';
+function setLoadingStep(name, state) {
+  const step = document.querySelector('[data-load-step="' + name + '"]');
+  if (!step) return;
+  step.dataset.state = state;
+  if (state === 'active') activeLoadingStep = name;
+  const states = [...document.querySelectorAll('[data-load-step]')]
+    .map(item => loadingStepNames[item.dataset.loadStep] + ' ' + ({pending:'aguardando',active:'em andamento',complete:'pronto',error:'com erro'}[item.dataset.state] || 'aguardando'));
+  get('start-light-tower').setAttribute('aria-label', states.join('; '));
+}
+function completeLoadingSteps() {
+  for (const name of Object.keys(loadingStepNames)) setLoadingStep(name, 'complete');
+}
+function syncPreGridConditions(nextWet = wet, nextHour = hour) {
+  preGridRoot.dataset.weather = nextWet ? 'rain' : 'clear';
+  preGridRoot.dataset.period = nextHour;
+}
+syncPreGridConditions();
 let openPicker = null;
 let conditionsBusy = true;
 function makePicker(trigger) {
@@ -122,6 +142,7 @@ function reset(nextKart = spawn(track)) {
 }
 function applyConditions() {
   world?.setConditions(hour, wet);
+  syncPreGridConditions();
   setText('conditions-hud', periodNames[hour] + ' · ' + (wet ? 'Chuva' : 'Céu aberto'));
   setText('menu-best', timer.best ? format(timer.best) : 'Sem volta registrada');
   snap = true;
@@ -152,44 +173,67 @@ function updateLoading(message, {error = false, progress = null, detail = ''} = 
   }
 }
 function showLoading(message, error = false) {
-  const main = document.querySelector('main');
-  main.dataset.loading = 'true';
-  main.dataset.ready = 'false';
+  preGridRoot.dataset.loading = 'true';
+  if (preGridRoot.dataset.ready === 'true' && !error) setLoadingStep('track', 'active');
+  preGridRoot.dataset.ready = 'false';
   get('loading-track').hidden = false;
   updateLoading(message, {error});
 }
 function showMenuReady() {
-  const main = document.querySelector('main');
   if (state !== 'menu') {
-    main.removeAttribute('data-loading');
-    main.removeAttribute('data-ready');
+    preGridRoot.removeAttribute('data-loading');
+    preGridRoot.removeAttribute('data-ready');
     get('loading-status').hidden = true;
     return;
   }
-  main.dataset.loading = 'true';
-  main.dataset.ready = 'true';
-  updateLoading('Kart e piloto prontos', {progress:100});
+  completeLoadingSteps();
+  preGridRoot.dataset.loading = 'true';
+  preGridRoot.dataset.ready = 'true';
+  updateLoading('Grid pronto. Você já pode largar.', {progress:100});
   get('loading-track').hidden = true;
 }
 function megabytes(bytes) { return (bytes / 1_048_576).toFixed(1); }
 function loadingProgress({stage, loaded, total, progress}, preparing = 'Preparando cena') {
   if (stage === 'assets') updateLoading('Carregando arquivos: ' + loaded + ' de ' + total);
   else if (stage === 'kart-download') {
+    setLoadingStep('models', 'active');
     const detail = total > 0 ? Math.round(loaded / total * 100) + '%' : megabytes(loaded) + ' MB';
     updateLoading(total > 0
       ? 'Baixando kart e piloto · ' + megabytes(loaded) + ' / ' + megabytes(total) + ' MB'
       : 'Baixando kart e piloto · ' + megabytes(loaded) + ' MB',
     {progress:total > 0 ? loaded / total * 100 : null, detail});
   }
-  else if (stage === 'kart-parse') updateLoading('Montando modelo 3D…');
-  else if (stage === 'renderer') updateLoading('Inicializando WebGPU…');
-  else if (stage === 'scene') updateLoading('Montando circuito…');
-  else if (stage === 'pipelines') updateLoading(Number.isFinite(progress) && Number.isFinite(total)
+  else if (stage === 'kart-parse') {
+    setLoadingStep('models', 'active');
+    updateLoading('Montando modelo 3D…');
+  }
+  else if (stage === 'renderer') {
+    setLoadingStep('webgpu', 'active');
+    updateLoading('Inicializando WebGPU…');
+  }
+  else if (stage === 'webgpu-ready') {
+    setLoadingStep('webgpu', 'complete');
+    updateLoading('WebGPU pronto. Carregando o kart…');
+  }
+  else if (stage === 'models-ready') {
+    setLoadingStep('models', 'complete');
+    updateLoading('Kart e piloto carregados. Preparando pista…');
+  }
+  else if (stage === 'scene') {
+    setLoadingStep('webgpu', 'complete');
+    setLoadingStep('models', 'complete');
+    setLoadingStep('track', 'active');
+    updateLoading('Montando circuito…');
+  }
+  else if (stage === 'pipelines') {
+    setLoadingStep('track', 'active');
+    updateLoading(Number.isFinite(progress) && Number.isFinite(total)
     ? preparing + ' · ' + progress + ' de ' + total + ' pipelines' : preparing + '…',
     {progress:Number.isFinite(progress) && Number.isFinite(total) && total > 0
       ? progress / total * 100 : null,
     detail:Number.isFinite(progress) && Number.isFinite(total) && total > 0
       ? Math.round(progress / total * 100) + '%' : ''});
+  }
 }
 function setConditionsBusy(busy) {
   conditionsBusy = busy;
@@ -207,6 +251,7 @@ async function changeConditions(nextHour, nextWet, preparing) {
   const focusedControl = document.activeElement;
   setConditionsBusy(true);
   showLoading(preparing + '…');
+  syncPreGridConditions(nextWet, nextHour);
   try {
     await afterPaint();
     await world.prepareConditions(nextHour, nextWet, progress => loadingProgress(progress, preparing), {
@@ -237,6 +282,7 @@ async function changeConditions(nextHour, nextWet, preparing) {
     }
     showLoading('Não foi possível preparar a condição. A seleção anterior foi mantida. Tente novamente.', true);
     document.querySelector('main').dataset.ready = 'true';
+    setLoadingStep('track', 'complete');
     get('loading-track').hidden = true;
     console.error(error);
   } finally {
@@ -277,7 +323,7 @@ function mode(next) {
   get('restart').hidden = next !== 'pause';
   if (next === 'pause') {
     setText('mode', 'Pausado');
-    get('start').firstChild.textContent = 'Voltar à pista ';
+    get('start').querySelector('.primary-label').textContent = 'Voltar à pista';
     setText('menu-best', timer.best ? format(timer.best) : 'Sem volta registrada');
     get('start').focus();
   } else if (playing) {
@@ -456,6 +502,7 @@ async function startGame() {
     showLoading(error instanceof WebGPUUnavailableError
       ? error.message
       : 'Não foi possível iniciar a cena 3D. Verifique se o navegador pode usar WebGPU e recarregue o jogo.', true);
+    setLoadingStep(activeLoadingStep, 'error');
     console.error(error);
   }
 }

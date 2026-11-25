@@ -13,6 +13,22 @@
   font-family: "Avenir Next", Avenir, sans-serif;
 }
 
+@property --pit-period-light {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: rgb(204 229 216 / 14%);
+}
+@property --pit-weather-light {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+@property --pit-beam-color {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: rgb(231 244 236 / 23%);
+}
+
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 body { margin: 0; }
@@ -22,7 +38,24 @@ main {
   height: 100dvh;
   position: relative;
   overflow: hidden;
+  --pit-period-light: rgb(204 229 216 / 14%);
+  --pit-weather-light: transparent;
+  --pit-beam-color: rgb(231 244 236 / 23%);
+  transition:
+    --pit-period-light 650ms ease,
+    --pit-weather-light 650ms ease,
+    --pit-beam-color 650ms ease;
 }
+
+main[data-period="dusk"] {
+  --pit-period-light: rgb(255 184 91 / 20%);
+  --pit-beam-color: rgb(255 221 163 / 31%);
+}
+main[data-period="night"] {
+  --pit-period-light: rgb(142 185 211 / 22%);
+  --pit-beam-color: rgb(233 246 255 / 40%);
+}
+main[data-weather="rain"] { --pit-weather-light: rgb(130 178 205 / 14%); }
 
 #scene {
   display: block;
@@ -233,7 +266,8 @@ h1 em {
   align-content: safe center;
   column-gap: clamp(24px, 4vw, 80px);
   background:
-    radial-gradient(ellipse at 69% 48%, #394641 0%, #1d2c27 42%, transparent 72%),
+    radial-gradient(ellipse 54% 80% at 72% 52%, var(--pit-weather-light) 0%, transparent 72%),
+    radial-gradient(ellipse 54% 82% at 69% 48%, var(--pit-period-light) 0%, transparent 76%),
     #0a1512;
 }
 
@@ -244,19 +278,94 @@ h1 em {
 }
 
 [data-pre-grid] .loading-showcase {
+  position: relative;
+  isolation: isolate;
   display: grid;
   min-width: 0;
   place-items: center;
   pointer-events: none;
 }
 
+.loading-showcase > span {
+  position: absolute;
+  display: block;
+  pointer-events: none;
+}
+
+.showcase-beam {
+  z-index: -1;
+  top: -7%;
+  right: 17%;
+  width: 40%;
+  height: 91%;
+  background: radial-gradient(ellipse 55% 94% at 50% 0%, var(--pit-beam-color), transparent 72%);
+  filter: blur(12px);
+  opacity: .7;
+  transform: rotate(-8deg);
+  transform-origin: 50% 0;
+  animation: pit-beam-drift 12s ease-in-out infinite alternate;
+}
+
+.showcase-reflection {
+  z-index: -1;
+  left: 15%;
+  right: 7%;
+  bottom: 6%;
+  height: 19%;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at 54% 50%, var(--pit-period-light), transparent 65%),
+    radial-gradient(ellipse at 54% 50%, var(--pit-weather-light), transparent 77%);
+  opacity: .9;
+  transform: scaleY(.5);
+}
+
+.showcase-grid {
+  z-index: -1;
+  left: 3%;
+  right: 1%;
+  bottom: 1%;
+  height: 48%;
+  background:
+    repeating-linear-gradient(90deg, rgb(207 231 217 / 16%) 0 1px, transparent 1px 8.5%),
+    repeating-linear-gradient(0deg, rgb(207 231 217 / 14%) 0 1px, transparent 1px 15%);
+  mask-image: linear-gradient(transparent 3%, #000 80%);
+  opacity: .33;
+  transform: perspective(440px) rotateX(68deg) scale(1.12);
+  transform-origin: center bottom;
+}
+
 .loading-showcase img {
+  position: relative;
+  z-index: 1;
   display: block;
   width: 100%;
   height: auto;
   max-height: min(74dvh, 720px);
   object-fit: contain;
   object-position: center;
+  /* Ambient effects stay behind the artwork so they never recolor the kart or suit. */
+  animation: showcase-camera 14s ease-in-out infinite alternate;
+  transform-origin: 54% 58%;
+}
+
+[data-pre-grid] .eyebrow { animation: menu-arrive 440ms cubic-bezier(.2,.8,.2,1) both; }
+[data-pre-grid] h1 { animation: menu-arrive 500ms cubic-bezier(.2,.8,.2,1) 60ms both; }
+[data-pre-grid] .hero-copy { animation: menu-arrive 460ms cubic-bezier(.2,.8,.2,1) 130ms both; }
+[data-pre-grid] .circuit-card { animation: menu-arrive 500ms cubic-bezier(.2,.8,.2,1) 190ms both; }
+[data-pre-grid] .loading-status { animation: menu-arrive 460ms cubic-bezier(.2,.8,.2,1) 250ms both; }
+
+@keyframes menu-arrive {
+  from { opacity: 0; transform: translate3d(0, 12px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+@keyframes showcase-camera {
+  from { transform: translate3d(0, .25%, 0) scale(1); }
+  to { transform: translate3d(0, -.25%, 0) scale(1.012); }
+}
+@keyframes pit-beam-drift {
+  from { transform: rotate(-10deg) translate3d(-1%, 0, 0); }
+  to { transform: rotate(-6deg) translate3d(1%, 0, 0); }
 }
 
 @media (min-width: 721px) and (max-height: 760px) {
@@ -284,6 +393,9 @@ h1 em {
   [data-pre-grid] .record { gap: 6px; padding-block: 8px; }
   [data-pre-grid] .record strong { font-size: .72rem; }
   [data-pre-grid] .primary { min-height: 54px; padding-inline: .8em; font-size: 1rem; }
+  [data-pre-grid] .loading-flow { grid-template-columns: minmax(96px, 112px) minmax(0, 1fr); gap: 8px; }
+  [data-pre-grid] .start-light-tower { padding: 6px; gap: 3px; }
+  [data-pre-grid] .start-light-step { gap: 6px; font-size: .47rem; }
 }
 
 main[data-loading="true"] #conditions,
@@ -307,6 +419,62 @@ main[data-loading="true"][data-ready="true"] .loading-lamp {
   gap: 10px;
   min-height: 16px;
 }
+.loading-flow {
+  display: grid;
+  grid-template-columns: minmax(100px, 132px) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(10px, 1.5vw, 18px);
+}
+.start-light-tower {
+  display: grid;
+  gap: 4px;
+  padding: 7px 9px;
+  border: 1px solid #e9f4e42b;
+  border-radius: 3px;
+  background: linear-gradient(145deg, #101c19ed, #07100fe8);
+  box-shadow: inset 0 0 0 1px #02080765, 0 5px 18px #02080738;
+}
+.start-light-step {
+  display: flex;
+  min-width: 0;
+  min-height: 17px;
+  align-items: center;
+  gap: 8px;
+  color: #9caaa3;
+  font: 700 .54rem/1.2 var(--digits);
+  letter-spacing: .035em;
+  text-transform: uppercase;
+}
+.start-light-step i {
+  flex: 0 0 9px;
+  width: 9px;
+  height: 9px;
+  border: 1px solid #91a49a9c;
+  border-radius: 50%;
+  background: #26342f;
+  box-shadow: inset 0 0 0 2px #101b18;
+}
+.start-light-step[data-state="active"] { color: var(--text); }
+.start-light-step[data-state="active"] i {
+  border-color: #ffe39a;
+  background: var(--accent);
+  box-shadow: 0 0 11px #ffcf6180, inset 0 0 0 2px #ffcf6133;
+  animation: tower-pulse 1.1s ease-in-out infinite alternate;
+}
+.start-light-step[data-state="complete"] { color: #aee9bd; }
+.start-light-step[data-state="complete"] i {
+  border-color: #9bf0b1;
+  background: #79e39c;
+  box-shadow: 0 0 10px #79e39c78, inset 0 0 0 2px #79e39c40;
+}
+.start-light-step[data-state="error"] { color: #ffc0b8; }
+.start-light-step[data-state="error"] i {
+  border-color: #ffaaa2;
+  background: #f3544b;
+  box-shadow: 0 0 10px #f3544b78;
+}
+.loading-readout { min-width: 0; }
+@keyframes tower-pulse { to { opacity: .55; } }
 .loading-lamp {
   flex: 0 0 8px;
   height: 8px;
@@ -438,6 +606,9 @@ main[data-loading="true"][data-ready="true"] .loading-lamp {
 .primary {
   width: min(100%, 490px);
   min-height: 62px;
+  display: flex;
+  align-items: center;
+  gap: clamp(8px, 2vw, 22px);
   padding: .8em 1.1em;
   border-color: var(--accent);
   background: var(--accent);
@@ -449,7 +620,31 @@ main[data-loading="true"][data-ready="true"] .loading-lamp {
 }
 
 .primary:hover:not(:disabled) { background: #ffe098; }
-.primary span { float: right; margin-left: 18px; }
+.primary-label { margin-right: auto; }
+.primary-ready {
+  display: inline-flex;
+  align-items: center;
+  gap: .45em;
+  padding: .42em .58em;
+  border: 1px solid #314c3e;
+  border-radius: 999px;
+  background: #12231c;
+  color: #b8f1c4;
+  font: 800 .56rem/1 var(--digits);
+  letter-spacing: .05em;
+  opacity: 0;
+  transform: translateY(3px);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+.primary-ready i {
+  width: .52em;
+  height: .52em;
+  border-radius: 50%;
+  background: #79e39c;
+  box-shadow: 0 0 7px #79e39caa;
+}
+.primary-arrow { font-size: 1.25em; line-height: 1; }
+main[data-loading="true"][data-ready="true"] .primary-ready { opacity: 1; transform: translateY(0); }
 
 .controls-help { width: min(100%, 490px); margin-top: 14px; }
 .controls-help summary {
@@ -712,7 +907,7 @@ kbd {
   .speed strong { font-size: clamp(2.4rem, 7vh, 4rem); }
 }
 
-@media (pointer: coarse) and (orientation: landscape) and (max-height: 520px) {
+@media (max-width: 900px) and (orientation: landscape) and (max-height: 520px) {
   .overlay.overlay {
     align-items: start;
     padding:
@@ -786,6 +981,10 @@ kbd {
   .topbar button { padding-inline: .57em; font-size: .72rem; }
   .brand { gap: .35em; letter-spacing: .07em; }
   .brand i { width: 12px; }
+  [data-pre-grid] .loading-flow { grid-template-columns: minmax(92px, 108px) minmax(0, 1fr); gap: 8px; }
+  [data-pre-grid] .start-light-tower { padding: 6px; gap: 3px; }
+  [data-pre-grid] .start-light-step { gap: 6px; font-size: .45rem; }
+  .primary-ready { font-size: .5rem; }
 }
 
 @media (max-width: 360px) {
@@ -803,8 +1002,37 @@ kbd {
   .keys { margin-top: 13px; }
 }
 
+@media (max-width: 900px) and (orientation: landscape) and (max-height: 520px) {
+  [data-pre-grid] .overlay.overlay {
+    align-items: center;
+    padding-block: max(40px, calc(env(safe-area-inset-top) + 32px)) max(10px, env(safe-area-inset-bottom));
+  }
+  [data-pre-grid] h1 { font-size: clamp(1.9rem, 6vh, 2.3rem); }
+  [data-pre-grid] .circuit-card { margin: 5px 0; padding-block: 4px; }
+  [data-pre-grid] #summary { display: none; }
+  [data-pre-grid] .loading-status { margin: 6px 0; }
+  [data-pre-grid] .loading-flow { grid-template-columns: 1fr; gap: 5px; }
+  [data-pre-grid] .start-light-tower { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; padding: 4px 6px; }
+  [data-pre-grid] .start-light-step { justify-content: center; min-height: 14px; gap: 4px; font-size: .42rem; }
+  [data-pre-grid] .start-light-step i { flex-basis: 8px; width: 8px; height: 8px; }
+  [data-pre-grid] .loading-track { margin: 6px 0 0 18px; }
+  [data-pre-grid] .conditions { gap: 6px; margin-bottom: 6px; }
+  [data-pre-grid] .picker { gap: 3px; }
+  [data-pre-grid] .picker-trigger { min-height: 44px; }
+  [data-pre-grid] .primary { min-height: 44px; padding-block: .65em; font-size: .98rem; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .picker-arrow, .controls-help summary span { transition: none; }
+  main { transition: none; }
   .loading-lamp, .loading-track[data-indeterminate="true"] > span,
-  .orientation-symbol { animation: none; }
+  .start-light-step[data-state="active"] i, .orientation-symbol { animation: none; }
+  [data-pre-grid] .eyebrow,
+  [data-pre-grid] h1,
+  [data-pre-grid] .hero-copy,
+  [data-pre-grid] .circuit-card,
+  [data-pre-grid] .loading-status,
+  [data-pre-grid] .loading-showcase img,
+  .showcase-beam { animation: none; }
+  .primary-ready { transition: none; }
 }

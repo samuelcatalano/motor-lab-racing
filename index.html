@@ -53,8 +53,17 @@
           <span id="summary">Carregando circuito…</span>
         </div>
         <div id="loading-status" class="loading-status" role="status" aria-live="polite" aria-atomic="false">
-          <div class="loading-heading"><span class="loading-lamp" aria-hidden="true"></span><span id="loading-copy">Inicializando WebGPU…</span><span id="loading-value"></span></div>
-          <div id="loading-track" class="loading-track" role="progressbar" aria-label="Progresso do carregamento" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-indeterminate="true"><span id="loading-progress"></span></div>
+          <div class="loading-flow">
+            <div id="start-light-tower" class="start-light-tower" role="img" aria-label="WebGPU aguardando; kart e piloto aguardando; pista aguardando">
+              <span class="start-light-step" data-load-step="webgpu" data-state="pending"><i aria-hidden="true"></i><small>WebGPU</small></span>
+              <span class="start-light-step" data-load-step="models" data-state="pending"><i aria-hidden="true"></i><small>Kart + piloto</small></span>
+              <span class="start-light-step" data-load-step="track" data-state="pending"><i aria-hidden="true"></i><small>Pista</small></span>
+            </div>
+            <div class="loading-readout">
+              <div class="loading-heading"><span class="loading-lamp" aria-hidden="true"></span><span id="loading-copy">Inicializando WebGPU…</span><span id="loading-value"></span></div>
+              <div id="loading-track" class="loading-track" role="progressbar" aria-label="Progresso do carregamento" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-indeterminate="true"><span id="loading-progress"></span></div>
+            </div>
+          </div>
         </div>
         <div class="conditions" id="conditions" aria-busy="true">
           <div class="picker" data-picker="weather">
@@ -81,7 +90,7 @@
         </div>
         <div class="record"><span class="label">Recorde pessoal</span><strong id="menu-best">Sem volta registrada</strong></div>
         <div class="menu-actions">
-          <button class="primary" id="start" type="button" disabled>Entrar na pista <span aria-hidden="true">↗</span></button>
+          <button class="primary" id="start" type="button" disabled><span class="primary-label">Entrar na pista</span><span class="primary-ready" aria-hidden="true"><i></i>PRONTO</span><span class="primary-arrow" aria-hidden="true">↗</span></button>
           <button id="restart" type="button" hidden>Nova sessão</button>
           <button id="reload" type="button" hidden>Recarregar jogo</button>
         </div>
@@ -97,6 +106,9 @@
         </details>
       </div>
       <div class="loading-showcase" aria-hidden="true">
+        <span class="showcase-beam"></span>
+        <span class="showcase-reflection"></span>
+        <span class="showcase-grid"></span>
         <img src="./assets/loading-pit.webp" width="1600" height="960" alt="" fetchpriority="high">
       </div>
     </section>
