@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
-import {PerspectiveCamera, Scene, Vector3} from 'three/webgpu';
+import {PerspectiveCamera, Raycaster, Scene, Vector2, Vector3} from 'three/webgpu';
 import {buildKart} from '../src/kart-view.js';
 import {cockpitFov, makeCockpit} from '../src/cockpit.js';
 
@@ -14,11 +14,23 @@ test('cockpit shows the road ahead and the whole steering rim together', async (
   const scene = new Scene(), kart = buildKart(scene, body);
   kart.update({x:0,z:0,angle:Math.PI/2,steer:0,spin:0}, 0);
   scene.updateMatrixWorld(true);
+  const triangleCount = () => {
+    let count = 0;
+    body.traverse(mesh => { if (mesh.isSkinnedMesh) count += mesh.geometry.index.count / 3; });
+    return count;
+  };
+  const originalTriangles = triangleCount();
   const previousDocument = globalThis.document;
   globalThis.document = {createElement:() => ({getContext:() => ({})})};
   let cockpit;
   try { cockpit = makeCockpit(kart); }
   finally { globalThis.document = previousDocument; }
+  assert.equal(triangleCount(), originalTriangles, 'external views retain all driver triangles');
+  const collar = [];
+  body.traverse(mesh => { if (mesh.name.endsWith('_cockpit_collar')) collar.push(mesh); });
+  assert.ok(collar.length > 0);
+  assert.ok(collar.every(mesh => mesh.layers.isEnabled(1) && !mesh.layers.isEnabled(0)),
+    'collar remains available to external cameras');
   const eye = new Vector3(), target = new Vector3();
   cockpit.frame(eye, target, 0);
   const camera = new PerspectiveCamera(cockpitFov, 2560/1319, .028, 200);
@@ -34,4 +46,18 @@ test('cockpit shows the road ahead and the whole steering rim together', async (
     const rim = kart.steering.localToWorld(new Vector3().fromBufferAttribute(positions, i)).project(camera);
     assert.ok(rim.y > -1 && rim.y < 0, 'whole steering wheel must remain in the lower half');
   }
+  for (const steer of [-1, 0, 1]) {
+    kart.update({x:0,z:0,angle:Math.PI/2,steer,spin:0,speed:17,brake:1}, 0);
+    scene.updateMatrixWorld(true);
+    for (const x of [-.2, 0, .2]) {
+      for (const y of [-.4, -.2, 0, .2]) {
+        const ray = new Raycaster();
+        ray.setFromCamera(new Vector2(x, y), camera);
+        const hits = ray.intersectObject(scene, true).filter(hit => hit.distance > camera.near);
+        assert.ok(!hits.length || hits[0].distance > .16,
+          'driver collar must not cross the cockpit camera while braking and turning');
+      }
+    }
+  }
+
 });

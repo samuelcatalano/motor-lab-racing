@@ -70,7 +70,43 @@ function instrument(steering) {
   };
 }
 
+// The driver's head and collar move through the eye point under braking.
+// Split only those cloth faces onto the existing exterior-only helmet layer.
+function hideCollarInCockpit(group) {
+  const cloth = [];
+  group.traverse(node => {
+    if (node.isSkinnedMesh && node.material?.name === 'Racer | yellow race cloth') cloth.push(node);
+  });
+  for (const mesh of cloth) {
+    const {skinIndex, skinWeight} = mesh.geometry.attributes;
+    const neckVertices = new Set();
+    for (let i = 0; i < skinIndex.count; i++) {
+      let weight = 0;
+      for (let j = 0; j < 4; j++) {
+        const bone = mesh.skeleton.bones[skinIndex.getComponent(i, j)].name;
+        if (bone === 'RigHead' || bone === 'mixamorig6Neck') weight += skinWeight.getComponent(i, j);
+      }
+      if (weight > .5) neckVertices.add(i);
+    }
+    const index = mesh.geometry.index, body = [], collar = [];
+    for (let i = 0; i < index.count; i += 3) {
+      const face = [index.getX(i), index.getX(i + 1), index.getX(i + 2)];
+      (face.some(vertex => neckVertices.has(vertex)) ? collar : body).push(...face);
+    }
+    if (!collar.length) continue;
+    const neck = mesh.clone(false);
+    neck.name = mesh.name + '_cockpit_collar';
+    neck.geometry = mesh.geometry.clone().setIndex(collar);
+    neck.geometry.clearGroups();
+    neck.layers.set(helmetLayer);
+    mesh.geometry = mesh.geometry.clone().setIndex(body);
+    mesh.geometry.clearGroups();
+    mesh.parent.add(neck);
+  }
+}
+
 export function makeCockpit({group, steering}) {
+  hideCollarInCockpit(group);
   const helmet = group.getObjectByName('DriverHelmet');
   helmet?.traverse(node => node.layers.set(helmetLayer));
   group.traverse(node => {
