@@ -4,7 +4,7 @@ import { defineConfig } from 'vite';
 
 const models = {
   '/__local-kart.glb': 'go-kart-fitted.glb',
-  '/__mixamo-kart.glb': 'mixamo-kart.glb',
+  '/__mixamo-kart.glb': 'mixamo-kart-race.glb',  // race model: wheel stood up to 60 deg; garage keeps mixamo-kart.glb
   '/__mixamo-kart-before-restoration.glb': 'mixamo-kart-before-restoration.glb',
 };
 const loopbackHosts = new Set(['localhost', '127.0.0.1', '[::1]']);
