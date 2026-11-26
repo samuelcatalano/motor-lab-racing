@@ -124,7 +124,9 @@ export function mountDriverRig(body, root, wheel) {
   const spine = body?.getObjectByName('RigSpine');
   const head = body?.getObjectByName('RigHead');
   if (!spine || !head) return null;
-  const detailedRacer = Boolean(body.getObjectByName('Racer_|_glove_cuff_L'));
+  const authoredGrip = body.userData.garageGripAuthored === true ||
+    body.getObjectByName('LippiRig')?.userData.garageGripAuthored === true;
+  const detailedRacer = !authoredGrip && Boolean(body.getObjectByName('Racer_|_glove_cuff_L'));
 
   root.updateWorldMatrix(true, true);
   const spineRest = spine.quaternion.clone();

@@ -1,6 +1,6 @@
 import * as T from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { buildKart, loadKartBody } from './kart-view.js';
+import { buildKart, loadGarageKartBody, loadKartBody } from './kart-view.js';
 import { spawn } from './drive.js';
 import { helmetLayer, makeCockpit } from './cockpit.js';
 import { random, surfaceMaps } from './surfaces.js';
@@ -583,9 +583,11 @@ export async function createWorld(canvas, track, {
     return kartBody;
   });
   const sceneAssets = Promise.all([loadTrackFinishes(manager), kartBodyPromise, rendererPromise]);
+  const garageManager = new T.LoadingManager();
+  const garageBodyPromise = garageCanvas ? loadGarageKartBody(garageManager) : Promise.resolve(null);
   let garage;
   try {
-    const garageReady = Promise.all([rendererPromise, kartBodyPromise]).then(([renderer, kartBody]) => {
+    const garageReady = Promise.all([rendererPromise, garageBodyPromise]).then(([renderer, garageBody]) => {
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = T.PCFShadowMap;
@@ -593,7 +595,7 @@ export async function createWorld(canvas, track, {
       renderer.toneMappingExposure = 1.06;
       if (!garageCanvas || !loadingAssets) return;
       try {
-        garage = createGaragePreview(renderer, garageCanvas, kartBody, makeContactShadow(), initialHour, initialWet);
+        garage = createGaragePreview(renderer, garageCanvas, garageBody, makeContactShadow(), initialHour, initialWet);
         garage.render(performance.now());
         onGarageReady(garage);
       } catch (error) {

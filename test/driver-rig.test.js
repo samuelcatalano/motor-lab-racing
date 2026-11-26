@@ -61,3 +61,46 @@ test('throttle and brake drive only their own foot and preserve pedal contact', 
     }
   }
 });
+
+test('a Blender-authored garage grip preserves its rest pose and follows steering', () => {
+  const root = new Group();
+  const rig = new Group();
+  rig.name = 'LippiRig';
+  rig.userData.garageGripAuthored = true;
+  const cuff = new Group();
+  cuff.name = 'Racer_|_glove_cuff_L';
+  rig.add(cuff);
+  root.add(rig);
+  function joint(parent, name, position) {
+    const node = new Group();
+    node.name = name;
+    node.position.copy(parent.worldToLocal(new Vector3(...position)));
+    parent.add(node);
+    return node;
+  }
+  const wheel = joint(root, 'ImportedSteering', [0, .45, .25]);
+  wheel.userData.steeringAxis = [0, 0, 1];
+  const spine = joint(rig, 'RigSpine', [0, .33, -.21]);
+  joint(spine, 'RigHead', [0, .68, -.16]);
+  const hands = ['L', 'R'].map((side, i) => {
+    const x = i === 0 ? .15 : -.15;
+    const collar = joint(spine, 'Collar' + side, [x, .55, -.15]);
+    const upper = joint(collar, 'RigUpperArm' + side, [x, .55, -.15]);
+    const lower = joint(upper, 'RigForearm' + side, [x * 1.5, .44, .03]);
+    const hand = joint(lower, 'RigHand' + side, [x, .45, .20]);
+    const finger = joint(hand, side + 'HandMiddle1', [x, .46, .22]);
+    finger.rotation.set(.4, -.2, .3);
+    return {collar, hand, finger, fingerRest:finger.quaternion.clone(),
+      grip:wheel.worldToLocal(hand.getWorldPosition(new Vector3()))};
+  });
+  const pose = mountDriverRig(root, root, wheel);
+  for (const {collar} of hands) assert.equal(collar.quaternion.w, 1);
+  for (const steer of [0, -.3, .3]) {
+    wheel.rotation.z = steer;
+    pose(.01, -.01, .02);
+    for (const {hand, finger, grip, fingerRest} of hands) {
+      assert.ok(wheel.worldToLocal(hand.getWorldPosition(new Vector3())).distanceTo(grip) < 1e-6);
+      assert.ok(finger.quaternion.angleTo(fingerRest) < 1e-7);
+    }
+  }
+});

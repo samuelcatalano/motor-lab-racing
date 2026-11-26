@@ -207,6 +207,29 @@ async function loadMixamoKart(loader, onProgress = () => {}) {
   }
 }
 
+export async function loadGarageKartBody(manager) {
+  try {
+    const { scene } = await new GLTFLoader(manager).loadAsync(
+      import.meta.env.BASE_URL + 'assets/kart/garage-kart.glb',
+    );
+    const authoredGrip = scene.userData.garageGripAuthored === true ||
+      scene.getObjectByName('LippiRig')?.userData.garageGripAuthored === true;
+    const steering = scene.getObjectByName('ImportedSteering') ?? scene.getObjectByName('KartSteering');
+    if (!authoredGrip || !steering?.userData.steeringAxis ||
+        ['RigSpine', 'RigHead', ...importedWheelNames,
+          ...['L', 'R'].flatMap(side => ['RigUpperArm', 'RigForearm', 'RigHand'].map(name => name + side))]
+          .some(name => !scene.getObjectByName(name))) {
+      throw new Error('O kart da garagem não contém a pose Blender e as articulações esperadas');
+    }
+    scene.traverse(node => {
+      if (node.isMesh) node.castShadow = node.receiveShadow = true;
+    });
+    return scene;
+  } catch (cause) {
+    throw new Error('Não foi possível carregar o kart Blender da garagem', {cause});
+  }
+}
+
 export async function loadKartBody(manager, onProgress = () => {}) {
   const loader = new GLTFLoader(manager);
   let scene;
