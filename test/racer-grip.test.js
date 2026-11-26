@@ -20,10 +20,12 @@ for (const presentation of [false, true]) {
     const frame = {x:0, z:0, angle:Math.PI / 2, steer:0, spin:0};
     kart.update(frame, 0);
     const gloveVertices = [];
+    const gloveFaces = [];
     if (presentation) {
       body.traverse(mesh => {
         if (!mesh.isSkinnedMesh) return;
         const {skinIndex, skinWeight} = mesh.geometry.attributes;
+        const selected = new Set();
         for (let index = 0; index < skinIndex.count; index++) {
           let handWeight = 0;
           for (let slot = 0; slot < 4; slot++) {
@@ -32,20 +34,42 @@ for (const presentation of [false, true]) {
               handWeight += skinWeight.getComponent(index, slot);
             }
           }
-          if (handWeight > .5) gloveVertices.push({mesh, index});
+          if (handWeight > .5) {
+            gloveVertices.push({mesh, index});
+            selected.add(index);
+          }
+        }
+        const indices = mesh.geometry.index;
+        const count = indices?.count ?? skinIndex.count;
+        for (let index = 0; index < count; index += 3) {
+          const triangle = [0, 1, 2].map(offset => indices ? indices.getX(index + offset) : index + offset);
+          if (triangle.every(vertex => selected.has(vertex))) gloveFaces.push({mesh, triangle});
         }
       });
       assert.ok(gloveVertices.length > 3000, 'inspect the actual glove mesh, including palms and fingertips');
     }
     function assertGloveClearance() {
       const point = new Vector3();
-      for (const {mesh, index} of gloveVertices) {
-        mesh.getVertexPosition(index, point);
-        wheel.worldToLocal(mesh.localToWorld(point));
+      function assertClearance(point, label) {
         const radial = Math.hypot(point.x, point.dot(up));
         const rimDepth = .092 * .14175 * point.dot(up) / radial;
         const clearance = Math.hypot(radial - .14175, point.dot(normal) - rimDepth) - .01575;
-        assert.ok(clearance >= 0, mesh.name + ' vertex ' + index + ' penetrates the rim by ' + (-clearance * 1000) + ' mm');
+        assert.ok(clearance >= 0, label + ' penetrates the rim by ' + (-clearance * 1000) + ' mm');
+      }
+      for (const {mesh, index} of gloveVertices) {
+        mesh.getVertexPosition(index, point);
+        wheel.worldToLocal(mesh.localToWorld(point));
+        assertClearance(point, mesh.name + ' vertex ' + index);
+      }
+      for (const {mesh, triangle} of gloveFaces) {
+        const corners = triangle.map(index =>
+          wheel.worldToLocal(mesh.localToWorld(mesh.getVertexPosition(index, new Vector3()))));
+        point.copy(corners[0]).add(corners[1]).add(corners[2]).divideScalar(3);
+        assertClearance(point, mesh.name + ' face ' + triangle[0]);
+        for (let edge = 0; edge < 3; edge++) {
+          point.copy(corners[edge]).lerp(corners[(edge + 1) % 3], .5);
+          assertClearance(point, mesh.name + ' edge ' + triangle[edge]);
+        }
       }
     }
     assertGloveClearance();

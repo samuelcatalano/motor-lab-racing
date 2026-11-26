@@ -1,4 +1,4 @@
-import { Euler, Quaternion, Vector3 } from 'three/webgpu';
+import { Euler, Matrix4, Quaternion, Vector3 } from 'three/webgpu';
 
 const localAxis = new Vector3(0, 1, 0);
 const pedalAxis = new Vector3(1, 0, 0);
@@ -37,6 +37,14 @@ function racerFingerBones(hand) {
   return bones;
 }
 
+function graspFrame(forward, across) {
+  forward.normalize();
+  across.addScaledVector(forward, -across.dot(forward)).normalize();
+  return new Quaternion().setFromRotationMatrix(
+    new Matrix4().makeBasis(across, forward, across.clone().cross(forward)),
+  );
+}
+
 function wrapRacerFingers(bones, wheel, normal, presentation) {
   const rimRadius = .14175;
   const up = new Vector3(1, 0, 0).cross(normal);
@@ -60,7 +68,7 @@ function wrapRacerFingers(bones, wheel, normal, presentation) {
     const chain = [1, 2, 3, 4].map(index => bones.get('Hand' + name + index));
     if (chain.some(bone => !bone)) continue;
     const {radial, depth} = section(wheelPosition(chain[0]));
-    const radii = presentation ? [.036, .036, name === 'Ring' ? .044 : .035] : [baseClearance, clearance, tipClearance];
+    const radii = presentation ? [.024, .024, .024] : [baseClearance, clearance, tipClearance];
     for (const [i, gloveClearance] of radii.entries()) {
       const joint = chain[i], child = chain[i + 1];
       const point = wheelPosition(joint);
@@ -84,8 +92,67 @@ function wrapRacerFingers(bones, wheel, normal, presentation) {
       .addScaledVector(normal, depth + (presentation ? .004 : .044)).addScaledVector(up, .017));
     pointJoint(thumbBase, thumb, radial.clone().multiplyScalar(rimRadius - .017)
       .addScaledVector(normal, depth + (presentation ? 0 : .026)).addScaledVector(up, .029));
-    pointJoint(thumb, thumbTip, radial.multiplyScalar(rimRadius - .016)
+    pointJoint(thumb, thumbTip, radial.multiplyScalar(rimRadius - (presentation ? .025 : .016))
       .addScaledVector(normal, depth + (presentation ? -.010 : .016)).addScaledVector(up, .041));
+  }
+}
+
+function gloveContactSurfaces(body) {
+  const surfaces = [];
+  body.traverse(mesh => {
+    if (!mesh.isSkinnedMesh) return;
+    const {skinIndex, skinWeight} = mesh.geometry.attributes;
+    const vertices = [];
+    for (let index = 0; index < skinIndex.count; index++) {
+      let weight = 0;
+      for (let slot = 0; slot < 4; slot++) {
+        const bone = mesh.skeleton.bones[skinIndex.getComponent(index, slot)];
+        if (/^RigHand[LR]$|Hand(Index|Middle|Ring|Pinky|Thumb)[1-4]$/.test(bone.name)) {
+          weight += skinWeight.getComponent(index, slot);
+        }
+      }
+      if (weight > .5) vertices.push(index);
+    }
+    if (!vertices.length) return;
+    mesh.geometry = mesh.geometry.clone();
+    surfaces.push({mesh, vertices});
+  });
+  return surfaces;
+}
+
+function fitGloveContact(surfaces, wheel) {
+  const normal = new Vector3().fromArray(wheel.userData.steeringAxis).negate();
+  const up = new Vector3(1, 0, 0).cross(normal);
+  const point = new Vector3(), center = new Vector3(), offset = new Vector3();
+  const boneMatrix = new Matrix4(), skinMatrix = new Matrix4();
+  for (const {mesh, vertices} of surfaces) {
+    const {position, skinIndex, skinWeight} = mesh.geometry.attributes;
+    for (const index of vertices) {
+      mesh.getVertexPosition(index, point);
+      wheel.worldToLocal(mesh.localToWorld(point));
+      const radial = Math.hypot(point.x, point.dot(up));
+      center.copy(point).addScaledVector(normal, -point.dot(normal)).multiplyScalar(.14175 / radial);
+      center.addScaledVector(normal, .092 * center.dot(up));
+      offset.subVectors(point, center);
+      if (offset.length() >= .024) continue;
+      // Compress the padded contact surface against the rubber while the finger bones form a closed grip.
+      point.copy(center).add(offset.setLength(.024));
+      mesh.worldToLocal(wheel.localToWorld(point));
+      skinMatrix.elements.fill(0);
+      for (let slot = 0; slot < 4; slot++) {
+        const boneIndex = skinIndex.getComponent(index, slot);
+        const weight = skinWeight.getComponent(index, slot);
+        boneMatrix.multiplyMatrices(mesh.skeleton.bones[boneIndex].matrixWorld, mesh.skeleton.boneInverses[boneIndex]);
+        for (let element = 0; element < 16; element++) {
+          skinMatrix.elements[element] += weight * boneMatrix.elements[element];
+        }
+      }
+      skinMatrix.premultiply(mesh.bindMatrixInverse).multiply(mesh.bindMatrix).invert();
+      point.applyMatrix4(skinMatrix);
+      position.setXYZ(index, point.x, point.y, point.z);
+    }
+    position.needsUpdate = true;
+    mesh.geometry.computeVertexNormals();
   }
 }
 
@@ -126,6 +193,7 @@ export function mountDriverRig(body, root, wheel, {presentation = false} = {}) {
   const head = body?.getObjectByName('RigHead');
   if (!spine || !head) return null;
   const detailedRacer = Boolean(body.getObjectByName('Racer_|_glove_cuff_L'));
+  let contactSurfaces = presentation && detailedRacer ? gloveContactSurfaces(body) : null;
 
   root.updateWorldMatrix(true, true);
   const spineRest = spine.quaternion.clone();
@@ -151,27 +219,35 @@ export function mountDriverRig(body, root, wheel, {presentation = false} = {}) {
       const middle = fingers.get('HandMiddle1');
       const knuckleOffset = middle &&
         wheel.worldToLocal(middle.getWorldPosition(new Vector3())).sub(grip).applyQuaternion(turn);
+      const sourceAcross = presentation && wheel.worldToLocal(fingers.get('HandIndex1').getWorldPosition(new Vector3()))
+        .sub(wheel.worldToLocal(fingers.get('HandPinky1').getWorldPosition(new Vector3()))).applyQuaternion(turn);
       grip.applyQuaternion(turn);
       gripOrientation.premultiply(turn);
-      if (knuckleOffset) {
+      if (presentation && knuckleOffset) {
+        const normal = axis.clone().negate();
+        const up = pedalAxis.clone().cross(normal);
+        const radial = new Vector3(side === 'L' ? 1 : -1, 0, 0).applyQuaternion(turn);
+        const across = up.clone().addScaledVector(radial, -up.dot(radial));
+        const forward = normal.clone().negate().addScaledVector(radial, -.40).addScaledVector(up, .60);
+        const source = graspFrame(knuckleOffset.clone(), sourceAcross);
+        const destination = graspFrame(forward, across);
+        const orient = destination.multiply(source.invert());
+        gripOrientation.premultiply(orient);
+        grip.copy(radial).multiplyScalar(.160)
+          .addScaledVector(normal, -.008 + .092 * .14175 * radial.dot(up))
+          .sub(knuckleOffset.applyQuaternion(orient));
+      } else if (knuckleOffset) {
         // Rotate about the knuckles so the wrist straightens without moving the grip off the rim.
-        const relax = new Quaternion().setFromAxisAngle(pedalAxis, presentation ? -.48 : -.43);
+        const relax = new Quaternion().setFromAxisAngle(pedalAxis, -.43);
         grip.add(knuckleOffset).sub(knuckleOffset.applyQuaternion(relax));
         gripOrientation.premultiply(relax);
-        if (presentation) {
-          const rimUp = pedalAxis.clone().cross(axis.clone().negate()).normalize();
-          const closePalm = new Quaternion().setFromAxisAngle(rimUp, side === 'L' ? -.65 : .65);
-          grip.add(knuckleOffset).sub(knuckleOffset.applyQuaternion(closePalm));
-          gripOrientation.premultiply(closePalm);
-        }
-        const palmRoll = presentation ? .10 : .48;
+        const palmRoll = .48;
         const roll = new Quaternion().setFromAxisAngle(knuckleOffset.normalize(), side === 'L' ? palmRoll : -palmRoll);
         gripOrientation.premultiply(roll);
       }
       rimNormal = axis.negate();
       const outward = grip.clone().addScaledVector(rimNormal, -grip.dot(rimNormal)).normalize();
-      grip.addScaledVector(outward, presentation ? .006 : -.004);
-      if (presentation) grip.addScaledVector(rimNormal, -.006);
+      if (!presentation) grip.addScaledVector(outward, -.004);
       // Protract the shoulders so the outside arm can reach the raised grip at full lock.
       const collar = upper.parent;
       const shoulderAxis = localAxis.clone().applyQuaternion(relativeQuaternion(collar.parent, root).invert());
@@ -215,6 +291,10 @@ export function mountDriverRig(body, root, wheel, {presentation = false} = {}) {
         wrapRacerFingers(arm.fingers, wheel, arm.rimNormal, presentation);
         arm.fingers = null;
       }
+    }
+    if (contactSurfaces) {
+      fitGloveContact(contactSurfaces, wheel);
+      contactSurfaces = null;
     }
 
     root.getWorldQuaternion(kartRotation);
