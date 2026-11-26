@@ -22,10 +22,10 @@
     <header class="topbar">
       <div class="brand"><i aria-hidden="true"></i> MOTOR LAB <b>RACING</b><span id="renderer-status" class="renderer-badge" role="status" aria-live="polite" hidden><i aria-hidden="true"></i> WebGPU ativo</span></div>
       <div class="top-actions">
-        <button id="sound" type="button" aria-pressed="false">Som</button>
         <details id="audio-settings" class="audio-settings">
           <summary aria-label="Configurações de áudio">Áudio <span aria-hidden="true">⌄</span></summary>
           <div class="audio-panel">
+            <button id="sound" type="button" aria-pressed="false">Som</button>
             <p class="audio-heading">Mixagem de áudio</p>
             <label for="volume-master">Geral <input id="volume-master" type="range" min="0" max="1" step="0.01" value="1"></label>
             <label for="volume-music">Música <input id="volume-music" type="range" min="0" max="1" step="0.01" value="1"></label>
@@ -63,6 +63,7 @@
             <span class="label">Circuito selecionado</span>
             <strong id="circuit-name">Vale do Cedro</strong>
             <span id="summary">Carregando circuito…</span>
+            <div class="record"><span class="label">Recorde pessoal</span><strong id="menu-best">Sem volta registrada</strong></div>
           </div>
           <svg class="menu-map" viewBox="0 0 256 151" role="img" aria-label="Traçado do circuito Vale do Cedro">
             <path id="menu-route" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"></path>
@@ -105,14 +106,13 @@
             </div>
           </div>
         </div>
-        <div class="record"><span class="label">Recorde pessoal</span><strong id="menu-best">Sem volta registrada</strong></div>
         <div class="menu-actions">
           <button class="primary" id="start" type="button" disabled><span class="primary-label">Entrar na pista</span><span class="primary-ready" aria-hidden="true"><i></i>PRONTO</span><span class="primary-arrow" aria-hidden="true">↗</span></button>
           <button id="restart" type="button" hidden>Nova sessão</button>
           <button id="reload" type="button" hidden>Recarregar jogo</button>
         </div>
         <details class="controls-help">
-          <summary>Controles <span aria-hidden="true">↗</span></summary>
+          <summary>Controles <span aria-hidden="true">⌄</span></summary>
           <dl class="keys">
             <div><dt><kbd>W</kbd> <kbd>S</kbd></dt><dd>Acelerar / frear</dd></div>
             <div><dt><kbd>A</kbd> <kbd>D</kbd></dt><dd>Dirigir</dd></div>

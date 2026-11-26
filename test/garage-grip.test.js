@@ -41,10 +41,27 @@ test('Blender garage gloves enclose the rim without crossing its surface during 
     scene.updateMatrixWorld(true);
     for (const side of ['Left', 'Right']) {
       const point = name => wheel.worldToLocal(body.getObjectByName('mixamorig6' + side + 'Hand' + name).getWorldPosition(new Vector3()));
-      const knuckle = point('Middle1');
-      assert.ok(radius(point('Thumb4')) < radius(knuckle) - .025, side + ' thumb opposes from inside');
+      const knuckle = point('Middle1'), wrist = wheel.worldToLocal(body.getObjectByName('RigHand' + side[0]).getWorldPosition(new Vector3()));
+      // The rim runs through the hand: its tube centre sits beside the palm, short of the knuckle row
+      // (the earlier pose pointed the knuckles at the tube, centre 8 mm past them).
+      const r = radius(knuckle), tube = new Vector3(.14175 * knuckle.x / r, 0, 0)
+        .addScaledVector(up, .14175 * knuckle.dot(up) / r).addScaledVector(normal, .092 * .14175 * knuckle.dot(up) / r);
+      const hand = knuckle.clone().sub(wrist), along = tube.clone().sub(wrist).dot(hand.clone().normalize());
+      assert.ok(along > 0 && along < hand.length() - .002, side + ' rim lies in the palm');
+      assert.ok(knuckle.distanceTo(tube) > .015 && knuckle.distanceTo(tube) < .028, side + ' knuckles wrap the tube');
+      const thumb = point('Thumb4');
+      assert.ok(thumb.dot(normal) - .092 * .14175 * thumb.dot(up) / radius(thumb) > 0 && clearance(thumb) < .012, side + ' thumb lies over the driver side of the rim');
+      // Each finger wraps the tube from its knuckle over the front (away from the driver):
+      // summed joint angles around the tube centre pass 150 deg, and the tip rests within 15 mm of the surface.
+      const around = p => Math.atan2(p.dot(normal) - .092 * .14175 * p.dot(up) / radius(p), radius(p) - .14175);
       for (const finger of ['Index', 'Middle', 'Ring', 'Pinky']) {
-        assert.ok(radius(point(finger + '4')) < radius(point(finger + '1')) - .02, side + finger + ' closes around the rim');
+        let sweep = 0;
+        for (let i = 1; i < 4; i++) {
+          const step = around(point(finger + (i + 1))) - around(point(finger + i));
+          sweep += Math.atan2(Math.sin(step), Math.cos(step));
+        }
+        const tip = clearance(point(finger + '4'));
+        assert.ok(sweep * 180 / Math.PI < -150 && tip >= 0 && tip < .015, side + finger + ' wraps the rim from the front');
       }
     }
     for (const {mesh, handVertices} of meshes) {

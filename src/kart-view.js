@@ -72,7 +72,7 @@ function makeNumberPlate() {
   ctx.font = '900 69px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('27', 64, 52);
+  ctx.fillText('06', 64, 52);
   const map = new T.CanvasTexture(canvas);
   map.colorSpace = T.SRGBColorSpace;
   map.anisotropy = 4;

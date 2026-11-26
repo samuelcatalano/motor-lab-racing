@@ -83,7 +83,7 @@ function floorPaint() {
     for (let x = -1.69; x < 4.4; x += .29) stripe(x, -3.56, x + .15, -3.32, p, 5);
     ctx.font = 'bold 67px sans-serif';
     ctx.fillStyle = '#d3d2bb9f';
-    ctx.fillText('17', px(.66), py(2.49));
+    ctx.fillText('06', px(.66), py(2.49));
     for (let stroke = 0; stroke < 100; stroke++) {
       const x = (rng() - .48) * 4, z = rng() * 5 - 2;
       ctx.strokeStyle = 'rgba(29, 31, 29,' + (.025 + rng() * .10) + ')';
@@ -237,7 +237,7 @@ function buildWorkshop(scene, renderer) {
     ctx.fillRect(0, 0, 16, 512);
     ctx.fillRect(0, 456, 1024, 5);
     ctx.font = 'italic 900 347px sans-serif';
-    ctx.fillText('17', 52, 323);
+    ctx.fillText('06', 52, 323);
     ctx.fillStyle = '#e9e5d8';
     ctx.font = 'bold 55px sans-serif';
     ctx.fillText('MOTOR LAB', 504, 187);

@@ -367,7 +367,7 @@ function mode(next) {
   }
 }
 function syncSound() {
-  setText('sound', sound.enabled ? 'Som ligado' : 'Som desligado');
+  setText('sound', sound.enabled ? 'Som: ligado' : 'Som: desligado');
   get('sound').setAttribute('aria-pressed', String(sound.enabled));
 }
 syncSound();
@@ -563,7 +563,7 @@ async function startGame() {
     world.render(kart, 0, camera, true);
     snap = false;
     setText('circuit-name', track.name);
-    setText('summary', Math.round(track.length) + ' m de circuito · sessão solo');
+    setText('summary', 'Contra o relógio · ' + Math.round(track.length) + ' m de circuito · sessão solo');
     setText('menu-best', timer.best ? format(timer.best) : 'Sem volta registrada');
     await afterPaint();
     initializing = false;

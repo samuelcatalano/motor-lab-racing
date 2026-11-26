@@ -38,7 +38,7 @@ main[data-pre-grid][data-garage-ready="true"] #garage { visibility: visible; }
   border: 1px solid #e9eee632;
   background: #0e1715cf;
   color: #e4e8dd;
-  font: 700 .68rem/1.1 var(--digits);
+  font: 700 .72rem/1.1 var(--digits);
   letter-spacing: .06em;
 }
 .audio-settings { position: relative; pointer-events: auto; }
@@ -60,9 +60,23 @@ main[data-pre-grid][data-garage-ready="true"] #garage { visibility: visible; }
   background: #111b18f5;
   box-shadow: 0 12px 32px #0007;
 }
-.audio-heading { margin: 0 0 16px; color: var(--accent); font: 700 .65rem/1 var(--digits); letter-spacing: .1em; text-transform: uppercase; }
+.audio-heading { margin: 0 0 16px; color: var(--accent); font: 700 .72rem/1 var(--digits); letter-spacing: .1em; text-transform: uppercase; }
 .audio-panel label { display: grid; grid-template-columns: 68px 1fr; align-items: center; gap: 12px; margin-top: 12px; font-size: .75rem; }
 .audio-panel input { width: 100%; accent-color: var(--accent); cursor: pointer; }
+.audio-panel #sound {
+  display: block;
+  width: 100%;
+  min-height: 40px;
+  margin-bottom: 4px;
+  padding: 11px 14px;
+  border: 1px solid #e9eee632;
+  background: #0e1715cf;
+  color: #e4e8dd;
+  font: 700 .72rem/1.1 var(--digits);
+  letter-spacing: .06em;
+  text-align: left;
+  cursor: pointer;
+}
 
 [data-pre-grid] #menu {
   display: grid;
@@ -88,6 +102,7 @@ main[data-pre-grid][data-garage-ready="true"] #garage { visibility: visible; }
 }
 [data-pre-grid] .panel::before { display: none; }
 [data-pre-grid] .eyebrow {
+  display: none; /* mode copy now reads inside the circuit summary */
   gap: 11px;
   margin: 0 0 clamp(15px, 2.4vh, 26px);
   color: #d5c67e;
@@ -95,7 +110,7 @@ main[data-pre-grid][data-garage-ready="true"] #garage { visibility: visible; }
   letter-spacing: .15em;
 }
 [data-pre-grid] h1 {
-  font-size: clamp(4rem, min(5.1vw, 9vh), 6.3rem);
+  font-size: clamp(3.6rem, min(4.5vw, 7.6vh), 5.1rem);
   line-height: .86;
   letter-spacing: -.055em;
   text-shadow: 0 4px 30px #0008;
@@ -120,6 +135,8 @@ main[data-pre-grid][data-loading="true"] .circuit-card {
 .circuit-copy { display: grid; gap: 5px; min-width: 0; }
 [data-pre-grid] .circuit-card strong { font-size: 1.5rem; letter-spacing: .015em; }
 [data-pre-grid] #summary { max-width: 30ch; font-size: .72rem; }
+/* The personal record lives inside the circuit card now, one reading group instead of a separate row. */
+[data-pre-grid] .circuit-copy .record { width: auto; margin: 6px 0 0; padding: 0; gap: 12px; align-items: baseline; justify-content: space-between; }
 .menu-map { flex: 0 0 140px; width: 140px; height: 82px; overflow: visible; color: #e9c75c; }
 [data-pre-grid] .loading-status,
 main[data-pre-grid][data-loading="true"] .loading-status { width: 100%; margin: 0 0 18px; }
@@ -144,7 +161,9 @@ main[data-pre-grid][data-refreshing] .start-light-tower { display: none; }
 [data-pre-grid] .loading-flow { grid-template-columns: 128px 1fr; }
 [data-pre-grid] .start-light-tower { border-color: #e1e8dd26; border-radius: 0; box-shadow: none; background: #0a1512bd; }
 [data-pre-grid] .conditions { width: 100%; gap: 14px; margin-bottom: 12px; }
-[data-pre-grid] .label { color: #adb7ab; font-size: .59rem; letter-spacing: .14em; }
+[data-pre-grid] .label { color: #adb7ab; font-size: .75rem; letter-spacing: .14em; }
+[data-pre-grid] .start-light-step { font-size: .7rem; }
+[data-pre-grid] .start-light-step small { font-size: 1em; }
 [data-pre-grid] .picker-trigger { min-height: 47px; background: #111c19db; border-color: #d6dfcf46; font-size: .82rem; }
 [data-pre-grid] .record { width: 100%; margin: 0 0 17px; padding: 11px 0; border-top: 0; }
 [data-pre-grid] .record strong { color: #e9e8d9; font-size: .77rem; }
@@ -189,4 +208,36 @@ main[data-pre-grid][data-loading="true"][data-ready="true"] .controls-help { dis
 }
 @media (min-width: 3800px) {
   [data-pre-grid] .panel { zoom: 1.4; }
+}
+/* Phones: the brand and the sound controls no longer fit one row, so the controls wrap under the brand. */
+@media (max-width: 600px) {
+  [data-pre-grid] .topbar { flex-wrap: wrap; row-gap: 8px; padding: 16px 18px; }
+  [data-pre-grid] .top-actions { margin-left: auto; }
+  main[data-pre-grid] .overlay.overlay { padding-top: 136px; }
+  /* Loading copy sits over the bright 3D scene on phones; give it a dark plate so it stays legible. */
+  [data-pre-grid][data-loading] .loading-status { padding: 10px 12px; background: rgb(8 18 15 / .82); border-radius: 6px; }
+  /* The record sits over the scene too; the same plate keeps it readable. */
+  [data-pre-grid] .record { padding-inline: 12px; border-radius: 6px; background: rgb(8 18 15 / .82); }
+}
+
+/* Touch: 44px minimum for the audio and controls toggles. */
+@media (pointer: coarse) {
+  .top-actions > button,
+  .audio-settings > summary,
+  [data-pre-grid] .controls-help summary { min-height: 44px; }
+}
+
+/* Touch landscape on a phone (~375px tall): compact the column so the start button clears the fold. */
+@media (orientation: landscape) and (max-height: 500px) {
+  [data-pre-grid] #menu { padding-top: 72px; padding-bottom: 4px; }
+  [data-pre-grid] h1 { font-size: clamp(2.2rem, 9vh, 3rem); margin-bottom: 8px; }
+  [data-pre-grid] .eyebrow { margin-bottom: 8px; }
+  main[data-pre-grid][data-loading="true"] .circuit-card { min-height: 0; margin: 0 0 6px; padding-block: 8px; }
+  [data-pre-grid] .circuit-copy .record { margin-top: 2px; }
+  [data-pre-grid] .menu-map { height: 44px; width: 90px; flex-basis: 90px; }
+  main[data-pre-grid][data-loading="true"] .loading-status { margin: 6px 0; }
+  [data-pre-grid] .conditions { margin-bottom: 4px; gap: 8px; }
+  [data-pre-grid] .record { margin-bottom: 5px; padding-block: 6px; }
+  [data-pre-grid] .primary { min-height: 52px; }
+  [data-pre-grid] .controls-help { margin-top: 2px; }
 }

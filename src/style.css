@@ -304,7 +304,7 @@ h1 em {
   [data-pre-grid] .primary { min-height: 54px; padding-inline: .8em; font-size: 1rem; }
   [data-pre-grid] .loading-flow { grid-template-columns: minmax(96px, 112px) minmax(0, 1fr); gap: 8px; }
   [data-pre-grid] .start-light-tower { padding: 6px; gap: 3px; }
-  [data-pre-grid] .start-light-step { gap: 6px; font-size: .47rem; }
+  [data-pre-grid] .start-light-step { gap: 6px; font-size: .7rem; }
 }
 
 main[data-loading="true"] #conditions,
