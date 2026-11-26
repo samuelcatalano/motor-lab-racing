@@ -2,7 +2,7 @@ import * as T from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { buildKart, loadGarageKartBody, loadKartBody } from './kart-view.js';
 import { spawn } from './drive.js';
-import { helmetLayer, makeCockpit } from './cockpit.js';
+import { cockpitFov, helmetLayer, makeCockpit } from './cockpit.js';
 import { random, surfaceMaps } from './surfaces.js';
 import { loadTrackFinishes, gridMarkings } from './track-finishes.js';
 import { addWoodland } from './woodland.js';
@@ -653,7 +653,7 @@ export async function createWorld(canvas, track, {
     // Pull back as the viewport narrows so the rear wheels stay in frame.
     const narrow = 1 - T.MathUtils.smoothstep(camera.aspect, .58, 1.28);
     const firstPerson = mode === 2;
-    const fov = firstPerson ? 67 + narrow * 9 : 56;
+    const fov = firstPerson ? cockpitFov + narrow * 9 : 56;
     if (camera.fov !== fov) {
       camera.fov = fov;
       camera.near = firstPerson ? .028 : .07;
