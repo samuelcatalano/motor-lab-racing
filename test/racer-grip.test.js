@@ -19,6 +19,36 @@ for (const presentation of [false, true]) {
     const up = new Vector3(1, 0, 0).cross(normal);
     const frame = {x:0, z:0, angle:Math.PI / 2, steer:0, spin:0};
     kart.update(frame, 0);
+    const gloveVertices = [];
+    if (presentation) {
+      body.traverse(mesh => {
+        if (!mesh.isSkinnedMesh) return;
+        const {skinIndex, skinWeight} = mesh.geometry.attributes;
+        for (let index = 0; index < skinIndex.count; index++) {
+          let handWeight = 0;
+          for (let slot = 0; slot < 4; slot++) {
+            const name = mesh.skeleton.bones[skinIndex.getComponent(index, slot)].name;
+            if (/^RigHand[LR]$|Hand(Index|Middle|Ring|Pinky|Thumb)[1-4]$/.test(name)) {
+              handWeight += skinWeight.getComponent(index, slot);
+            }
+          }
+          if (handWeight > .5) gloveVertices.push({mesh, index});
+        }
+      });
+      assert.ok(gloveVertices.length > 3000, 'inspect the actual glove mesh, including palms and fingertips');
+    }
+    function assertGloveClearance() {
+      const point = new Vector3();
+      for (const {mesh, index} of gloveVertices) {
+        mesh.getVertexPosition(index, point);
+        wheel.worldToLocal(mesh.localToWorld(point));
+        const radial = Math.hypot(point.x, point.dot(up));
+        const rimDepth = .092 * .14175 * point.dot(up) / radial;
+        const clearance = Math.hypot(radial - .14175, point.dot(normal) - rimDepth) - .01575;
+        assert.ok(clearance >= 0, mesh.name + ' vertex ' + index + ' penetrates the rim by ' + (-clearance * 1000) + ' mm');
+      }
+    }
+    assertGloveClearance();
     const anchors = [];
     for (const side of ['Left', 'Right']) {
       const middle = body.getObjectByName('mixamorig6' + side + 'HandMiddle1');
@@ -40,6 +70,7 @@ for (const presentation of [false, true]) {
         const moved = wheel.worldToLocal(bone.getWorldPosition(new Vector3()));
         assert.ok(moved.distanceTo(point) < 1e-5, bone.name + ' follows the rim through steering and body movement');
       }
+      assertGloveClearance();
     }
   });
 

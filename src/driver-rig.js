@@ -60,7 +60,7 @@ function wrapRacerFingers(bones, wheel, normal, presentation) {
     const chain = [1, 2, 3, 4].map(index => bones.get('Hand' + name + index));
     if (chain.some(bone => !bone)) continue;
     const {radial, depth} = section(wheelPosition(chain[0]));
-    const radii = presentation ? [.034, .034, .032] : [baseClearance, clearance, tipClearance];
+    const radii = presentation ? [.036, .036, name === 'Ring' ? .044 : .035] : [baseClearance, clearance, tipClearance];
     for (const [i, gloveClearance] of radii.entries()) {
       const joint = chain[i], child = chain[i + 1];
       const point = wheelPosition(joint);
@@ -80,13 +80,12 @@ function wrapRacerFingers(bones, wheel, normal, presentation) {
   if (thumbRoot && thumbBase && thumb && thumbTip) {
     // Oppose the fingers with the thumb pad against the driver's side of the inner rim.
     const {radial, depth} = section(wheelPosition(bones.get('HandMiddle1')));
-    const facing = presentation ? -1 : 1;
-    pointJoint(thumbRoot, thumbBase, radial.clone().multiplyScalar(rimRadius - (presentation ? .020 : .004))
-      .addScaledVector(normal, depth + facing * .044).addScaledVector(up, .017));
-    pointJoint(thumbBase, thumb, radial.clone().multiplyScalar(rimRadius - (presentation ? .042 : .017))
-      .addScaledVector(normal, depth + facing * .026).addScaledVector(up, .029));
-    pointJoint(thumb, thumbTip, radial.multiplyScalar(rimRadius - (presentation ? .044 : .016))
-      .addScaledVector(normal, depth + facing * .016).addScaledVector(up, .041));
+    pointJoint(thumbRoot, thumbBase, radial.clone().multiplyScalar(rimRadius - .004)
+      .addScaledVector(normal, depth + (presentation ? .004 : .044)).addScaledVector(up, .017));
+    pointJoint(thumbBase, thumb, radial.clone().multiplyScalar(rimRadius - .017)
+      .addScaledVector(normal, depth + (presentation ? 0 : .026)).addScaledVector(up, .029));
+    pointJoint(thumb, thumbTip, radial.multiplyScalar(rimRadius - .016)
+      .addScaledVector(normal, depth + (presentation ? -.010 : .016)).addScaledVector(up, .041));
   }
 }
 
@@ -161,7 +160,7 @@ export function mountDriverRig(body, root, wheel, {presentation = false} = {}) {
         gripOrientation.premultiply(relax);
         if (presentation) {
           const rimUp = pedalAxis.clone().cross(axis.clone().negate()).normalize();
-          const closePalm = new Quaternion().setFromAxisAngle(rimUp, side === 'L' ? .70 : -.70);
+          const closePalm = new Quaternion().setFromAxisAngle(rimUp, side === 'L' ? -.65 : .65);
           grip.add(knuckleOffset).sub(knuckleOffset.applyQuaternion(closePalm));
           gripOrientation.premultiply(closePalm);
         }
@@ -171,8 +170,8 @@ export function mountDriverRig(body, root, wheel, {presentation = false} = {}) {
       }
       rimNormal = axis.negate();
       const outward = grip.clone().addScaledVector(rimNormal, -grip.dot(rimNormal)).normalize();
-      grip.addScaledVector(outward, presentation ? -.002 : -.004);
-      if (presentation) grip.addScaledVector(rimNormal, -.049);
+      grip.addScaledVector(outward, presentation ? .006 : -.004);
+      if (presentation) grip.addScaledVector(rimNormal, -.006);
       // Protract the shoulders so the outside arm can reach the raised grip at full lock.
       const collar = upper.parent;
       const shoulderAxis = localAxis.clone().applyQuaternion(relativeQuaternion(collar.parent, root).invert());
