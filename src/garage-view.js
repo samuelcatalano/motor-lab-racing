@@ -1,4 +1,3 @@
-import { addClosedGloves } from './closed-gloves.js';
 import * as T from 'three/webgpu';
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
 import { dot, float, mix, reflector, smoothstep, texture, uniform, uv, vec2, vec3 } from 'three/tsl';
@@ -463,11 +462,10 @@ export function createGaragePreview(renderer, canvas, kartBody, contact, initial
   benchLight.target.position.set(-3.36, 1.4, -3.2);
   scene.add(key, key.target, bounce, rim, benchLight, benchLight.target);
 
-  const group = buildKart(scene, kartBody && clone(kartBody), {presentation:true});
+  const group = buildKart(scene, kartBody && clone(kartBody));
   const parked = {x:0, z:0, angle:Math.PI / 2 + .40, steer:0, spin:0};
   const idle = {lean:0, pitch:0, look:0};
   group.update(parked, 0, idle);
-  if (group.group.getObjectByName('Racer_|_glove_cuff_L')) addClosedGloves(group.group, group.steering);
   contact.position.y = .015;
   contact.rotation.y = Math.PI / 2 - parked.angle;
   scene.add(contact);

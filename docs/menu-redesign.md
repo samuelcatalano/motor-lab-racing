@@ -24,7 +24,6 @@ A apresentação do veículo em Brand Central, a progressão de preparação no 
 | Asset | Origem |
 | --- | --- |
 | Geometria, materiais, sinalização da garagem e céu procedural | Criados em código para Motor Lab Racing. |
-| Luvas fechadas na apresentação | Geometria original ajustada ao aro, com dedos e polegares modelados individualmente. As superfícies abertas do Racer são ocultadas na garagem. |
 | Música, efeitos de interface e ambiente do menu | Síntese original em Web Audio. |
 | Kart, pintura, capacete e piloto autorais | Reutilizados de `go-kart` e `public/assets/kart/kart-body.glb`. O tecido Bi Stretch tem licença CC0. [Inventário](../go-kart/LICENSES.md) |
 | Variante Racer / Go Kart de GRIP420 | O mesmo GLB é carregado na prévia local e no GitHub Pages. O chassi Go Kart de GRIP420 tem licença CC BY-NC-ND 4.0. [Inventário local](../README.md#kart-enviado-para-teste-local) · [Adobe Mixamo FAQ](https://helpx.adobe.com/creative-cloud/faq/mixamo-faq.html) |
