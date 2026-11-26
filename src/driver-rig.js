@@ -97,65 +97,6 @@ function wrapRacerFingers(bones, wheel, normal, presentation) {
   }
 }
 
-function gloveContactSurfaces(body) {
-  const surfaces = [];
-  body.traverse(mesh => {
-    if (!mesh.isSkinnedMesh) return;
-    const {skinIndex, skinWeight} = mesh.geometry.attributes;
-    const vertices = [];
-    for (let index = 0; index < skinIndex.count; index++) {
-      let weight = 0;
-      for (let slot = 0; slot < 4; slot++) {
-        const bone = mesh.skeleton.bones[skinIndex.getComponent(index, slot)];
-        if (/^RigHand[LR]$|Hand(Index|Middle|Ring|Pinky|Thumb)[1-4]$/.test(bone.name)) {
-          weight += skinWeight.getComponent(index, slot);
-        }
-      }
-      if (weight > .5) vertices.push(index);
-    }
-    if (!vertices.length) return;
-    mesh.geometry = mesh.geometry.clone();
-    surfaces.push({mesh, vertices});
-  });
-  return surfaces;
-}
-
-function fitGloveContact(surfaces, wheel) {
-  const normal = new Vector3().fromArray(wheel.userData.steeringAxis).negate();
-  const up = new Vector3(1, 0, 0).cross(normal);
-  const point = new Vector3(), center = new Vector3(), offset = new Vector3();
-  const boneMatrix = new Matrix4(), skinMatrix = new Matrix4();
-  for (const {mesh, vertices} of surfaces) {
-    const {position, skinIndex, skinWeight} = mesh.geometry.attributes;
-    for (const index of vertices) {
-      mesh.getVertexPosition(index, point);
-      wheel.worldToLocal(mesh.localToWorld(point));
-      const radial = Math.hypot(point.x, point.dot(up));
-      center.copy(point).addScaledVector(normal, -point.dot(normal)).multiplyScalar(.14175 / radial);
-      center.addScaledVector(normal, .092 * center.dot(up));
-      offset.subVectors(point, center);
-      if (offset.length() >= .024) continue;
-      // Compress the padded contact surface against the rubber while the finger bones form a closed grip.
-      point.copy(center).add(offset.setLength(.024));
-      mesh.worldToLocal(wheel.localToWorld(point));
-      skinMatrix.elements.fill(0);
-      for (let slot = 0; slot < 4; slot++) {
-        const boneIndex = skinIndex.getComponent(index, slot);
-        const weight = skinWeight.getComponent(index, slot);
-        boneMatrix.multiplyMatrices(mesh.skeleton.bones[boneIndex].matrixWorld, mesh.skeleton.boneInverses[boneIndex]);
-        for (let element = 0; element < 16; element++) {
-          skinMatrix.elements[element] += weight * boneMatrix.elements[element];
-        }
-      }
-      skinMatrix.premultiply(mesh.bindMatrixInverse).multiply(mesh.bindMatrix).invert();
-      point.applyMatrix4(skinMatrix);
-      position.setXYZ(index, point.x, point.y, point.z);
-    }
-    position.needsUpdate = true;
-    mesh.geometry.computeVertexNormals();
-  }
-}
-
 function limb(upper, lower, end) {
   const start = upper.getWorldPosition(new Vector3());
   const joint = lower.getWorldPosition(new Vector3());
@@ -193,7 +134,6 @@ export function mountDriverRig(body, root, wheel, {presentation = false} = {}) {
   const head = body?.getObjectByName('RigHead');
   if (!spine || !head) return null;
   const detailedRacer = Boolean(body.getObjectByName('Racer_|_glove_cuff_L'));
-  let contactSurfaces = presentation && detailedRacer ? gloveContactSurfaces(body) : null;
 
   root.updateWorldMatrix(true, true);
   const spineRest = spine.quaternion.clone();
@@ -291,10 +231,6 @@ export function mountDriverRig(body, root, wheel, {presentation = false} = {}) {
         wrapRacerFingers(arm.fingers, wheel, arm.rimNormal, presentation);
         arm.fingers = null;
       }
-    }
-    if (contactSurfaces) {
-      fitGloveContact(contactSurfaces, wheel);
-      contactSurfaces = null;
     }
 
     root.getWorldQuaternion(kartRotation);

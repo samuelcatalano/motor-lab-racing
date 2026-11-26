@@ -4,6 +4,7 @@ import {readFile} from 'node:fs/promises';
 import {Scene, Vector3} from 'three/webgpu';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {buildKart} from '../src/kart-view.js';
+import {addClosedGloves} from '../src/closed-gloves.js';
 
 for (const presentation of [false, true]) {
   test('Racer keeps the ' + (presentation ? 'garage' : 'driving') + ' grip attached through full steering travel', async () => {
@@ -19,16 +20,20 @@ for (const presentation of [false, true]) {
     const up = new Vector3(1, 0, 0).cross(normal);
     const frame = {x:0, z:0, angle:Math.PI / 2, steer:0, spin:0};
     kart.update(frame, 0);
+    if (presentation) addClosedGloves(kart.group, wheel);
     const gloveVertices = [];
     const gloveFaces = [];
     if (presentation) {
       body.traverse(mesh => {
-        if (!mesh.isSkinnedMesh) return;
-        const {skinIndex, skinWeight} = mesh.geometry.attributes;
+        const closed = mesh.userData.closedGlove;
+        if (!mesh.isSkinnedMesh && !closed) return;
+        const {skinIndex, skinWeight, position} = mesh.geometry.attributes;
+        const rendered = new Set(mesh.geometry.index?.array ?? Array.from({length:position.count}, (_, index) => index));
         const selected = new Set();
-        for (let index = 0; index < skinIndex.count; index++) {
-          let handWeight = 0;
-          for (let slot = 0; slot < 4; slot++) {
+        for (let index = 0; index < position.count; index++) {
+          if (!rendered.has(index)) continue;
+          let handWeight = closed ? 1 : 0;
+          for (let slot = 0; slot < (closed ? 0 : 4); slot++) {
             const name = mesh.skeleton.bones[skinIndex.getComponent(index, slot)].name;
             if (/^RigHand[LR]$|Hand(Index|Middle|Ring|Pinky|Thumb)[1-4]$/.test(name)) {
               handWeight += skinWeight.getComponent(index, slot);
@@ -40,7 +45,7 @@ for (const presentation of [false, true]) {
           }
         }
         const indices = mesh.geometry.index;
-        const count = indices?.count ?? skinIndex.count;
+        const count = indices?.count ?? position.count;
         for (let index = 0; index < count; index += 3) {
           const triangle = [0, 1, 2].map(offset => indices ? indices.getX(index + offset) : index + offset);
           if (triangle.every(vertex => selected.has(vertex))) gloveFaces.push({mesh, triangle});
